@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+from task_machine.StateMachine import * #StateMachine
+import rospy
+import time 
+
+def blocking_call(queue):
+    args = queue.get()
+    i =0
+    print args
+    x = args[0]
+    y = args[1]
+    z = args[2]
+    print "Z: ", z
+    while i < 5:
+        x+=1
+        y+=1
+        z+=1
+        time.sleep(1)
+        i+=1
+    print "computed: ", [x, y, z]
+    queue.put([x,y,z])
+
+    return
+
+def start(cargo_in, event):
+    print "START"
+    return ("first", [1,2,3])
+def first(cargo_in, event):
+    print "cargo_in: ", cargo_in
+    run_blocking(blocking_call, cargo_in, event)
+    return ("Start", None)
+
+if __name__== "__main__":
+    rospy.init_node("blockingState")
+    m = StateMachine()
+    m.add_state("Start", start, None)
+    m.add_state("first", first, None)
+    m.set_start("Start")
+    m.run("Python is great")
+    #m.run("Python is difficult")
+    #m.run("Perl is ugly")

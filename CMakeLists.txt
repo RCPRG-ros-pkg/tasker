@@ -44,4 +44,5 @@ project(multitasker)
 
   catkin_install_python(PROGRAMS 
   		bin/exampleState
+  		bin/blockingState
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
