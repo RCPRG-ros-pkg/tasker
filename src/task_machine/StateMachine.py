@@ -4,7 +4,7 @@ import time
 from std_msgs.msg import *
 import multiprocessing
 import threading
-
+import datetime
 stop_trigger = False
 
 class SigHoldFSM(Exception):
@@ -27,13 +27,13 @@ class FSMThread(threading.Thread):
     def run(self):
         # cargo = self.cargo
         # event = self._stop_event
-        print "thread event: ", self._stop_event
+        # print(str(datetime.datetime.now().time())+"\n"+ "thread event: "+ str(self._stop_event)+"\n")
         self._return = self.target(cargo_in = self.cargo_in, event = self._stop_event)
-            # print self._stop_event.is_set()
+            # print(str(datetime.datetime.now().time())+"\n"+ self._stop_event.is_set()+"\n")
             # time.sleep(0.2)
     def stop(self):
         # raise SIGTERM
-        print "thread STOPPPING"
+        # print(str(datetime.datetime.now().time())+"\n"+ "thread STOPPPING"+"\n")
         self._stop_event.set()
     def stopped(self):
         return self._stop_event.is_set()
@@ -44,8 +44,8 @@ class FSMThread(threading.Thread):
 class PTFProcess(multiprocessing.Process):
     def __init__(self, group=None, target=None,
                  args=(), kwargs={}, Verbose=None):
-        print "args: ", args
-        print "kwargs: ", kwargs
+        print(str(datetime.datetime.now().time())+"\n"+ "args: "+ str(args)+"\n")
+        print(str(datetime.datetime.now().time())+"\n"+ "kwargs: "+ str(kwargs)+"\n")
         kwargs = ['ret', 'args']
         multiprocessing.Process.__init__(self, group, target, args, kwargs, Verbose)
         self._return = None
@@ -78,28 +78,32 @@ class PTFProcess(multiprocessing.Process):
 #         return self._return
 
 def run_blocking(handler, arguments = None, state_event = None):
+    ret = None
     pqueue = multiprocessing.Queue() 
     pqueue.put(arguments)
     p = multiprocessing.Process(target=handler, args=(pqueue, ))
     # new_thread = PTFThread(target = handler, args = (arguments,))
     p.daemon = True
     p.start()
-    print "new thread is alive: ", p.is_alive() 
+    print(str(datetime.datetime.now().time())+"\n"+ "PID: "+ str( p.pid)+"\n")
+    print(str(datetime.datetime.now().time())+"\n"+ "new thread is alive: "+ str(p.is_alive()) +"\n")
     while (p.is_alive()):
         time.sleep(0.1)
-        if state_event.is_set():
-            # p.terminate()
-            print "terminate"
-        print "waiting to kill"
-    ret = pqueue.get()
+        if state_event.isSet():
+            p.terminate()
+            print(str(datetime.datetime.now().time())+"\n"+ "terminate"+"\n")
+        print(str(datetime.datetime.now().time())+"\n"+ "waiting for a blocking call to end or a hold signal"+"\n")
+    if not state_event.isSet():
+        ret = pqueue.get()
     p.join()
     # return_dict.values()
-    print "after kill"
-    print "VALUES: ", ret
+    print(str(datetime.datetime.now().time())+"\n"+ "after kill"+"\n")
+    print(str(datetime.datetime.now().time())+"\n"+ "VALUES: "+ str(ret)+"\n")
     return ret
 
 class StateMachine:
-    def __init__(self):
+    def __init__(self, file):
+        self.print_log = file
         self.handlers = {}
         self.startState = None
         self.endStates = []
@@ -118,29 +122,28 @@ class StateMachine:
         self.resumeData = None
 
     def onHold(self, param):
-        print "HOLD: ", param
+        print(str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
         self.task_state = 2 # Holding
         # self.q.put(self.task_state)
         self.fsm_stop_event.set()
         time.sleep(0.1)
         while True:
             if self.current_state_m_thread.is_alive():
-                print "onHold waiting for fsm thread"
+                print("onHold waiting for fsm thread"+"\n")
                 # self.current_state_m_thread.join(timeout=1.0)
                 time.sleep(0.1)
                 break # watchdog process daemon gets terminated
         self.task_state = 3 # Holded
-        # print "onHold waiting for resume"
+        # print(str(datetime.datetime.now().time())+"\n"+ "onHold waiting for resume"+"\n")
         # # self.handlers[self.current_state.upper()][1]("blah")
         # data = rospy.wait_for_message('/resume_now', Empty)  
-        # print "onHold GOT resume"
-        # print data 
+        # print(str(datetime.datetime.now().time())+"\n"+ "onHold GOT resume"+"\n")
+        # print(str(datetime.datetime.now().time())+"\n"+ data +"\n")
         return
 
     def onResume(self, param):
-        print "RESUME"
+        print(str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
         self.task_state = 4 # Resuming
-
         time.sleep(0.1)  
 
         # self.current_state_m_thread.join()
@@ -183,47 +186,58 @@ class StateMachine:
         self.start_deadline = value
     def run_state_machine(self, cargo_in, event):
         state_stop_event = threading.Event()
+        state_stop_event.clear()
         holdData = None
         newState = "next"
         cargo_out = None
-        print "END STATES: ", self.endStates
+        FSM_holded = False
+        # print(str(datetime.datetime.now().time())+"\n"+ "END STATES: ", self.endStates+"\n")
         try:
             while True:
-                print "ev1: ", event.isSet()
-                print "RUNNING STATE: ", self.current_state.upper()
+                # print(str(datetime.datetime.now().time())+"\n"+ "ev1: ", event.isSet()+"\n")
+                print(str(datetime.datetime.now().time())+"\n"+ "RUNNING STATE: "+ str(self.current_state.upper())+"\n")
                 thread = FSMThread(target = self.handlers[self.current_state.upper()][0], cargo_in = cargo_in, event = state_stop_event)
                 thread.start()
                 while True:
-                    if event.isSet():
-                        state_stop_event.set()
-                        while thread.is_alive():
-                            print "FSM waits for state to terminate"
-                            time.sleep(1)
-                        (newState, cargo_out) = thread.join()
-                        print "FSM launched newState to hold task"
-                        (self.resumeState, self.resumeData) = self.handlers[newState.upper()][0](cargo_in=cargo_out, event = None)
-                        print "FSM FINISHED newState as a hold state"
-                        break
-
-                    if (not event.isSet() and not thread.is_alive()):
+                    print( "thread: "+ str(thread.is_alive())+"\n")
+                    print( "event: "+ str(event.isSet())+"\n")
+                    print("state_stop_event: "+ str(state_stop_event.isSet())+"\n")
+                    if (not thread.is_alive()):
                         (newState, cargo_out) = thread.join()
                         self.current_state = newState
                         cargo_in = cargo_out
-                        print "GOT:"
-                        print "newState: ", newState
-                        print "cargo_out: ", cargo_out
                         break
-                print "ev2: ", event.isSet()
+
+                    if state_stop_event.isSet():
+                        while thread.is_alive():
+                            print(str(datetime.datetime.now().time())+"\n"+ "FSM waits for state to terminate"+"\n")
+                            time.sleep(1)
+                        (newState, cargo_out) = thread.join()
+                        print(str(datetime.datetime.now().time())+"\n"+ "FSM launched newState to hold task"+"\n")
+                        (self.resumeState, self.resumeData) = self.handlers[newState.upper()][0](cargo_in=cargo_out, event = None)
+                        print(str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
+                        FSM_holded = True
+                        break
+                    
+                        # print(str(datetime.datetime.now().time())+"\n"+ "GOT:"+"\n")
+                        # print(str(datetime.datetime.now().time())+"\n"+ "newState: ", newState+"\n")
+                        # print(str(datetime.datetime.now().time())+"\n"+ "cargo_out: ", cargo_out+"\n")
+                    if event.isSet():
+                        state_stop_event.set()
+
+                    
+                    time.sleep(0.1)
+                print(str(datetime.datetime.now().time())+"\n"+ "ev2: "+ str(event.isSet())+"\n")
                 
-                if event.isSet():
-                    print "FSM finished"
+                if event.isSet() and FSM_holded:
+                    print(str(datetime.datetime.now().time())+"\n"+ "FSM finished"+"\n")
                     break
                 if self.current_state.upper() in self.endStates:
-                    print "FSM reached end state: ", self.current_state
+                    print(str(datetime.datetime.now().time())+"\n"+ "FSM reached end state: "+ str(self.current_state)+"\n")
                     self.task_state = 5
                     break
         finally:
-            print "FSM bye"
+            print(str(datetime.datetime.now().time())+"\n"+ "FSM bye"+"\n")
             state_stop_event.set()
             while thread.is_alive():
                 thread.join()
@@ -232,7 +246,7 @@ class StateMachine:
         try:
             self.q = multiprocessing.Queue()
             self.current_state = self.startState
-            print "start: ", self.current_state
+            print(str(datetime.datetime.now().time())+"\n"+ "start: "+ str(self.current_state)+"\n"+"\n")
             # handler = self.handlers[self.startState.upper()][0]
             self.task_state = 1 # Running
         
@@ -241,11 +255,11 @@ class StateMachine:
             self.current_state_m_thread.start()
             while not rospy.is_shutdown():
                 if self.task_state == 3:
-                    print "FSM killed, joining thread"
+                    print(str(datetime.datetime.now().time())+"\n"+ "FSM killed, joining thread, waiting for resume"+"\n")
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
                 if self.task_state == 4:
-                    print "Resuming fsm"
+                    print(str(datetime.datetime.now().time())+"\n"+ "Resuming fsm"+"\n")
                     self.current_state = self.resumeState
                     cargo = self.resumeData
                     self.fsm_stop_event.clear()
@@ -253,18 +267,19 @@ class StateMachine:
                     self.current_state_m_thread.start()
                     self.task_state = 1    
                 if self.task_state == 5:
-                    print "FSM finished, terminating whole task" 
+                    print(str(datetime.datetime.now().time())+"\n"+ "FSM finished, terminating whole task" +"\n")
                     while self.current_state_m_thread.is_alive():
-                        print "trying to kill FSM"
+                        print(str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
                     break          
                 time.sleep(1)
-                print "test"
+                print(str(datetime.datetime.now().time())+"\n"+ "test"+"\n")
         finally:
+                print(str(datetime.datetime.now().time())+"\n"+ "FINAL"+"\n")
                 self.fsm_stop_event.set()
                 while self.current_state_m_thread.is_alive():
-                    print "trying to kill FSM"
+                    print(str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
                     self.current_state_m_thread.join()                # raise InitializationError("must call .set_start() before .run()")
                 # if not self.endStates:
                 #     raise  InitializationError("at least one state must be an end_state")

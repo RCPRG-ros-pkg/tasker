@@ -3,40 +3,76 @@
 from task_machine.StateMachine import * #StateMachine
 import rospy
 import time 
-
+import datetime
 def blocking_call(queue):
-    args = queue.get()
-    i =0
-    print args
-    x = args[0]
-    y = args[1]
-    z = args[2]
-    print "Z: ", z
-    while i < 5:
-        x+=1
-        y+=1
-        z+=1
-        time.sleep(1)
-        i+=1
-    print "computed: ", [x, y, z]
-    queue.put([x,y,z])
-
+    try:
+        args = queue.get()
+        i =0
+        f1.write(str(datetime.datetime.now().time())+"\n"+ args+"\n")
+        x = args[0]
+        y = args[1]
+        z = args[2]
+        f1.write(str(datetime.datetime.now().time())+"\n"+ "Z: ", z+"\n")
+        while i < 100:
+            x+=1
+            y+=1
+            z+=1
+            time.sleep(1)
+            i+=1
+        f1.write(str(datetime.datetime.now().time())+"\n"+ "computed: "+ str([x, y, z])+"\n")
+        queue.put([x,y,z])
+    finally:
+        f1.write(str(datetime.datetime.now().time())+"\n"+ "EXCEPTTTTTTTTTTTTTTTTTTTTT"+"\n")
     return
 
 def start(cargo_in, event):
-    print "START"
+    f1.write("\n"+ "----------"+"\n")
+    f1.write( "START"+"\n")
+    f1.write( "----------"+"\n")
+    f1.write("\t cargo: "+ str( cargo_in)+"\n")
+    f1.write("\t STATE_EVENT: "+ str( event.isSet())+"\n")
+    f1.write( ""+"\n")
+    if event.isSet():
+        f1.write( ""+"\n")
+        f1.write( "set HOLD"+"\n")
+        f1.write( ""+"\n")
+        return ("first_hold", "data required to hold")
     return ("first", [1,2,3])
 def first(cargo_in, event):
-    print "cargo_in: ", cargo_in
-    run_blocking(blocking_call, cargo_in, event)
+    f1.write(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    f1.write( "FIRST"+"\n")
+    f1.write("----------"+"\n")
+    f1.write( "\t cargo: "+ str( cargo_in)+"\n")
+    f1.write( "\t STATE_EVENT: "+ str( event.isSet())+"\n")
+    # run_blocking(blocking_call, cargo_in, event)
+    if event.isSet():
+        f1.write( ""+"\n")
+        f1.write( "set HOLD"+"\n")
+        f1.write( ""+"\n")
+        return ("first_hold", "data required to hold")
     return ("Start", None)
 
+def first_hold(cargo_in, event):
+    f1.write(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    f1.write("FIRST HOLD"+"\n")
+    f1.write( "----------"+"\n")
+    f1.write("\t cargo: "+ str( cargo_in)+"\n")
+    # run_blocking(blocking_call, cargo_in, event)
+    return ("first", "restart from start")
+
 if __name__== "__main__":
-    rospy.init_node("blockingState")
-    m = StateMachine()
-    m.add_state("Start", start, None)
-    m.add_state("first", first, None)
-    m.set_start("Start")
-    m.run("Python is great")
+    try:
+        rospy.init_node("blockingState")
+        f2=open('./state_m_log', 'w+')
+        m = StateMachine(f2)
+        m.add_state("Start", start, None)
+        m.add_state("first", first, None)
+        m.add_state("first_hold", first_hold, None)
+        m.set_start("Start")
+        f1=open('./blockin_log', 'w+')
+        m.run("Python is great")
     #m.run("Python is difficult")
     #m.run("Perl is ugly")
+    finally:
+        f2.close()
+        f1.close()
