@@ -241,6 +241,8 @@ class StateMachine:
                             time.sleep(1)
                         if state_stopped.isSet():
                             (newState, cargo_out) = thread.join()
+                            if newState == None:
+                                break
                             self.current_state = newState
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM launched newState to hold task: "+str(newState.upper())+"\n")
                             self.pub_state.publish( "| "+str(self.current_state) + " | with input: "+ str(cargo_out))
