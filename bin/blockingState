@@ -59,7 +59,7 @@ def move_to_human(cargo_in, event_in, event_out):
             return ("hold_moving", "stop robot")
         time.sleep(1)
         i+=1
-    return ("greed", "Hello, your examination will be proceed in room 10. Please follow me")
+    return ("greet", "Hello, your examination will be proceed in room 10. Please follow me")
 
 def hold_moving(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
@@ -70,9 +70,9 @@ def hold_moving(cargo_in):
     return ("move_to_human", ["Zdzisiu",[10,20]])
 
 
-def greed(cargo_in, event_in, event_out):
+def greet(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
-    print( "greed"+"\n")
+    print( "greet"+"\n")
     print("----------"+"\n")
 
     i=0
@@ -85,12 +85,12 @@ def greed(cargo_in, event_in, event_out):
             print( ""+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return ("hold_greed", "Oh! I'm sorry but I got very important request. Please wait, I'll come back")
+            return ("hold_greet", "Oh! I'm sorry but I got very important request. Please wait, I'll come back")
         i+=1
         time.sleep(1)
     return ("guide_human", "room 10")
 
-def hold_greed(cargo_in):
+def hold_greet(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "SAY"+"\n")
     print("----------"+"\n")
@@ -106,17 +106,16 @@ def guide_human(cargo_in, event_in, event_out):
     while i < 10:
         print( "\t Moving to the destination: "+ str( cargo_in)+"\n")
         print( "\t Checking if the human is following me"+"\n")
-    # run_blocking(blocking_call, cargo_in, event)
         if event_in.isSet():
             event_out.set()
             print( ""+"\n")
-            # print( "get estimated time to back"+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
             return ("hold_guide", None)
         i+=1
         time.sleep(1)
     return ("goodbye_human", None)
+
 def hold_guide(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print("hold_guide"+"\n")
@@ -125,7 +124,6 @@ def hold_guide(cargo_in):
     print( "\t Approaching human "+"\n")
     print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
     print( "\t Go aside "+"\n")
-    # run_blocking(blocking_call, cargo_in, event)
     return ("move_to_human", ["Zdzisiu",[10,20]])
 
 def goodbye_human(cargo_in, event_in, event_out):
@@ -138,27 +136,11 @@ def goodbye_human(cargo_in, event_in, event_out):
     while i < 5:
         print( "\t Checking if the speech is over"+"\n")
         print( "\t HOLD IS UNAVAILABLE"+"\n")
-    # run_blocking(blocking_call, cargo_in, event)
-        # if event_in.isSet():
-        #     event_out.set()
-        #     print( ""+"\n")
-        #     # print( "get estimated time to back"+"\n")
-        #     print( "set HOLD"+"\n")
-        #     print( ""+"\n")
-        #     return ("hold_goodbye", None)
+
         i+=1
         time.sleep(1)
     return ("go_to_dock", None)
-# def hold_goodbye(cargo_in):
-#     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
-#     print("hold_guiding"+"\n")
-#     print( "----------"+"\n")
-#     print("\t args: "+ str( cargo_in)+"\n")
-#     print( "\t Approaching human "+"\n")
-#     print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
-#     print( "\t Go aside "+"\n")
-#     # run_blocking(blocking_call, cargo_in, event)
-#     return ("move_to_human", ["Zdzisiu",[10,20]])
+
 def go_to_dock(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "go_to_dock"+"\n")
@@ -167,17 +149,18 @@ def go_to_dock(cargo_in, event_in, event_out):
     i = 0
     while i < 5:
         print( "\t Moving to my dock"+")\n")
-    # run_blocking(blocking_call, cargo_in, event)
         if event_in.isSet():
             event_out.set()
             print( ""+"\n")
-            # print( "get estimated time to back"+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return (None, None)
+            return ("final", None)
         i+=1
         time.sleep(1)
-    return ("go_to_dock", None)    
+    return ("final", None) 
+
+def final(cargo_in):
+    return
 
 if __name__== "__main__":
     try:
@@ -188,12 +171,13 @@ if __name__== "__main__":
         m.add_state("Start", start, None)
         m.add_state("move_to_human", move_to_human, None)
         m.add_state("hold_moving", hold_moving, None)
-        m.add_state("greed", greed, None)
-        m.add_state("hold_greed", hold_greed, None)
+        m.add_state("greet", greet, None)
+        m.add_state("hold_greet", hold_greet, None)
         m.add_state("guide_human", guide_human, None)
         m.add_state("hold_guide", hold_guide, None)
         m.add_state("goodbye_human", goodbye_human, None)
-        m.add_state("go_to_dock", go_to_dock, end_state=True)
+        m.add_state("go_to_dock", go_to_dock, None)
+        m.add_state("final", final, end_state=True)
         m.set_start("Start")
         m.run("Python is great")
     #m.run("Python is difficult")
