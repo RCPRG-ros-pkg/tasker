@@ -1,0 +1,748 @@
+begin_version
+3
+end_version
+begin_metric
+0
+end_metric
+12
+begin_variable
+var0
+-1
+2
+Atom at(elektron, init-hum)
+NegatedAtom at(elektron, init-hum)
+end_variable
+begin_variable
+var1
+-1
+2
+Atom at(elektron, init-rob)
+NegatedAtom at(elektron, init-rob)
+end_variable
+begin_variable
+var2
+-1
+2
+Atom at(elektron, kuchnia)
+NegatedAtom at(elektron, kuchnia)
+end_variable
+begin_variable
+var5
+-1
+2
+Atom close(elektron, elektron)
+NegatedAtom close(elektron, elektron)
+end_variable
+begin_variable
+var10
+-1
+2
+Atom interacts(elektron, elektron)
+NegatedAtom interacts(elektron, elektron)
+end_variable
+begin_variable
+var8
+-1
+2
+Atom follows(elektron, elektron)
+NegatedAtom follows(elektron, elektron)
+end_variable
+begin_variable
+var3
+-1
+2
+Atom at(zdzisiu, init-rob)
+NegatedAtom at(zdzisiu, init-rob)
+end_variable
+begin_variable
+var6
+-1
+2
+Atom close(elektron, zdzisiu)
+NegatedAtom close(elektron, zdzisiu)
+end_variable
+begin_variable
+var9
+-1
+2
+Atom follows(zdzisiu, elektron)
+NegatedAtom follows(zdzisiu, elektron)
+end_variable
+begin_variable
+var7
+-1
+2
+Atom followed(elektron)
+NegatedAtom followed(elektron)
+end_variable
+begin_variable
+var4
+-1
+2
+Atom at(zdzisiu, kuchnia)
+NegatedAtom at(zdzisiu, kuchnia)
+end_variable
+begin_variable
+var11
+-1
+2
+Atom interacts(elektron, zdzisiu)
+NegatedAtom interacts(elektron, zdzisiu)
+end_variable
+0
+begin_state
+1
+0
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+end_state
+begin_goal
+2
+10 0
+11 1
+end_goal
+26
+begin_operator
+approach elektron elektron init-hum
+1
+0 0
+1
+0 3 1 0
+1
+end_operator
+begin_operator
+approach elektron elektron init-rob
+1
+1 0
+1
+0 3 1 0
+1
+end_operator
+begin_operator
+approach elektron elektron kuchnia
+1
+2 0
+1
+0 3 1 0
+1
+end_operator
+begin_operator
+approach elektron zdzisiu init-hum
+1
+0 0
+1
+0 7 1 0
+1
+end_operator
+begin_operator
+approach elektron zdzisiu init-rob
+2
+1 0
+6 0
+1
+0 7 1 0
+1
+end_operator
+begin_operator
+approach elektron zdzisiu kuchnia
+2
+2 0
+10 0
+1
+0 7 1 0
+1
+end_operator
+begin_operator
+end_follow elektron elektron
+1
+4 0
+2
+0 9 0 1
+0 5 0 1
+1
+end_operator
+begin_operator
+end_follow elektron zdzisiu
+1
+11 0
+2
+0 9 0 1
+0 8 0 1
+1
+end_operator
+begin_operator
+end_interaction elektron elektron
+2
+3 0
+5 1
+1
+0 4 0 1
+1
+end_operator
+begin_operator
+end_interaction elektron zdzisiu
+2
+7 0
+8 1
+1
+0 11 0 1
+1
+end_operator
+begin_operator
+go elektron init-hum init-rob elektron
+0
+2
+0 0 0 1
+0 1 1 0
+1
+end_operator
+begin_operator
+go elektron init-hum init-rob zdzisiu
+0
+3
+0 0 0 1
+0 1 1 0
+1 8 0 6 -1 0
+1
+end_operator
+begin_operator
+go elektron init-hum kuchnia elektron
+0
+2
+0 0 0 1
+0 2 1 0
+1
+end_operator
+begin_operator
+go elektron init-hum kuchnia zdzisiu
+0
+3
+0 0 0 1
+0 2 1 0
+1 8 0 10 -1 0
+1
+end_operator
+begin_operator
+go elektron init-rob init-hum elektron
+0
+2
+0 0 1 0
+0 1 0 1
+1
+end_operator
+begin_operator
+go elektron init-rob init-hum zdzisiu
+0
+2
+0 0 1 0
+0 1 0 1
+1
+end_operator
+begin_operator
+go elektron init-rob kuchnia elektron
+0
+2
+0 1 0 1
+0 2 1 0
+1
+end_operator
+begin_operator
+go elektron init-rob kuchnia zdzisiu
+0
+3
+0 1 0 1
+0 2 1 0
+1 8 0 10 -1 0
+1
+end_operator
+begin_operator
+go elektron kuchnia init-hum elektron
+0
+2
+0 0 1 0
+0 2 0 1
+1
+end_operator
+begin_operator
+go elektron kuchnia init-hum zdzisiu
+0
+2
+0 0 1 0
+0 2 0 1
+1
+end_operator
+begin_operator
+go elektron kuchnia init-rob elektron
+0
+2
+0 1 1 0
+0 2 0 1
+1
+end_operator
+begin_operator
+go elektron kuchnia init-rob zdzisiu
+0
+3
+0 1 1 0
+0 2 0 1
+1 8 0 6 -1 0
+1
+end_operator
+begin_operator
+init_follow elektron elektron
+1
+4 0
+2
+0 9 -1 0
+0 5 1 0
+1
+end_operator
+begin_operator
+init_follow elektron zdzisiu
+1
+11 0
+2
+0 9 -1 0
+0 8 1 0
+1
+end_operator
+begin_operator
+start_interaction elektron elektron
+1
+3 0
+1
+0 4 1 0
+1
+end_operator
+begin_operator
+start_interaction elektron zdzisiu
+1
+7 0
+1
+0 11 1 0
+1
+end_operator
+0
+begin_SG
+switch 0
+check 0
+switch 1
+check 0
+check 0
+check 2
+10
+11
+switch 2
+check 0
+check 0
+check 2
+12
+13
+switch 3
+check 0
+check 0
+check 1
+0
+switch 7
+check 0
+check 0
+check 1
+3
+check 0
+switch 1
+check 0
+check 2
+14
+15
+check 0
+switch 2
+check 0
+check 2
+18
+19
+check 0
+check 0
+switch 1
+check 0
+switch 2
+check 0
+check 0
+check 2
+16
+17
+switch 6
+check 0
+switch 7
+check 0
+check 0
+check 1
+4
+check 0
+check 0
+switch 3
+check 0
+check 0
+check 1
+1
+check 0
+switch 2
+check 0
+check 2
+20
+21
+check 0
+check 0
+switch 2
+check 0
+switch 10
+check 0
+switch 7
+check 0
+check 0
+check 1
+5
+check 0
+check 0
+switch 3
+check 0
+check 0
+check 1
+2
+check 0
+check 0
+switch 3
+check 0
+switch 5
+check 0
+check 0
+switch 4
+check 0
+check 1
+8
+check 0
+check 0
+switch 4
+check 0
+check 0
+check 1
+24
+check 0
+check 0
+switch 7
+check 0
+switch 8
+check 0
+check 0
+switch 11
+check 0
+check 1
+9
+check 0
+check 0
+switch 11
+check 0
+check 0
+check 1
+25
+check 0
+check 0
+switch 9
+check 0
+switch 5
+check 0
+switch 4
+check 0
+check 1
+6
+check 0
+check 0
+check 0
+switch 8
+check 0
+switch 11
+check 0
+check 1
+7
+check 0
+check 0
+check 0
+check 0
+check 0
+switch 5
+check 0
+check 0
+switch 4
+check 0
+check 1
+22
+check 0
+check 0
+switch 8
+check 0
+check 0
+switch 11
+check 0
+check 1
+23
+check 0
+check 0
+check 0
+end_SG
+begin_DTG
+2
+1
+10
+1
+1 1
+1
+12
+1
+2 1
+2
+0
+14
+1
+1 0
+0
+18
+1
+2 0
+end_DTG
+begin_DTG
+2
+1
+14
+1
+0 1
+1
+16
+1
+2 1
+2
+0
+10
+1
+0 0
+0
+20
+1
+2 0
+end_DTG
+begin_DTG
+2
+1
+18
+1
+0 1
+1
+20
+1
+1 1
+2
+0
+12
+1
+0 0
+0
+16
+1
+1 0
+end_DTG
+begin_DTG
+0
+3
+0
+0
+1
+0 0
+0
+1
+1
+1 0
+0
+2
+1
+2 0
+end_DTG
+begin_DTG
+1
+1
+8
+2
+3 0
+5 1
+1
+0
+24
+1
+3 0
+end_DTG
+begin_DTG
+1
+1
+6
+2
+9 0
+4 0
+1
+0
+22
+1
+4 0
+end_DTG
+begin_DTG
+0
+2
+0
+11
+3
+0 0
+1 1
+8 0
+0
+21
+3
+1 1
+2 0
+8 0
+end_DTG
+begin_DTG
+0
+3
+0
+3
+1
+0 0
+0
+4
+2
+1 0
+6 0
+0
+5
+2
+2 0
+10 0
+end_DTG
+begin_DTG
+1
+1
+7
+2
+9 0
+11 0
+1
+0
+23
+1
+11 0
+end_DTG
+begin_DTG
+2
+1
+6
+2
+5 0
+4 0
+1
+7
+2
+8 0
+11 0
+2
+0
+22
+2
+5 1
+4 0
+0
+23
+2
+8 1
+11 0
+end_DTG
+begin_DTG
+0
+2
+0
+13
+3
+0 0
+2 1
+8 0
+0
+17
+3
+1 0
+2 1
+8 0
+end_DTG
+begin_DTG
+1
+1
+9
+2
+7 0
+8 1
+1
+0
+25
+1
+7 0
+end_DTG
+begin_CG
+6
+1 4
+2 4
+6 1
+10 1
+3 1
+7 1
+6
+0 4
+2 4
+6 2
+10 1
+3 1
+7 1
+6
+0 4
+1 4
+6 1
+10 2
+3 1
+7 1
+1
+4 2
+2
+9 2
+5 2
+2
+9 2
+4 1
+1
+7 1
+1
+11 2
+4
+6 2
+10 2
+9 2
+11 1
+2
+5 1
+8 1
+1
+7 1
+2
+9 2
+8 2
+end_CG

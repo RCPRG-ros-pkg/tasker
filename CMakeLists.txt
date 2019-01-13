@@ -21,6 +21,26 @@ project(multitasker)
   )
 
   catkin_python_setup()
+execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile-pddl-planner.sh)
+#message( ${CMAKE_CURRENT_SOURCE_DIR} )
+#add_custom_command(TARGET VAL
+#                   PRE_BUILD 
+#                   COMMAND make clean
+#		   COMMAND make
+#                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../VAL
+#		  )
+#add_custom_command(TARGET universal-pddl-parser
+#                   PRE_BUILD 
+#                   COMMAND scons 
+#                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../universal-pddl-parser 
+#                  )
+#add_custom_command(TARGET temporal-planning
+#                   PRE_BUILD 
+#                   COMMAND python fd_copy/build.py release64
+#		   COMMAND scons 
+#                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../temporal-planning
+#                  )
+
 
   # Actually generate the language-specific message and service files
   generate_messages(DEPENDENCIES std_msgs)
@@ -44,5 +64,5 @@ project(multitasker)
 
   catkin_install_python(PROGRAMS 
   		bin/exampleState
-  		bin/blockingState
+  		bin/txt_guideHuman
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
