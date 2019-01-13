@@ -21,7 +21,10 @@ project(multitasker)
   )
 
   catkin_python_setup()
-execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile-pddl-planner.sh)
+execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile-pddl-planner.sh
+
+		WORKIN_DIRECTORY ${CATKIN_PACKAGE_SOURCE_DIR}
+		)
 #message( ${CMAKE_CURRENT_SOURCE_DIR} )
 #add_custom_command(TARGET VAL
 #                   PRE_BUILD 
