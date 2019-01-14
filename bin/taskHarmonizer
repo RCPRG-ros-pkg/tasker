@@ -44,8 +44,7 @@ def handleNewTaskRequest(req):
 
     package = 'multitasker' 
     executable = req.application
-    name = "guide_2"
-    cmd = "rosrun "+ package + " "+executable+" "+name
+    cmd = "rosrun "+ package + " "+executable
     os.system(cmd)
     # node = roslaunch.core.Node(package, executable)
 

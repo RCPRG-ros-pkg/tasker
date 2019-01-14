@@ -165,8 +165,7 @@ def final(cargo_in):
 
 if __name__== "__main__":
     try:
-        node_name = sys.argv[1]
-        rospy.init_node(node_name)
+        rospy.init_node("guide_human", anonymous=True)
         f1=open('./blockin_log', 'w+')
         f2=open('./state_m_log', 'w+')
         m = StateMachine(f2)
