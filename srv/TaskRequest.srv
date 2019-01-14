@@ -1,0 +1,4 @@
+string application
+int8 priority
+---
+bool status 

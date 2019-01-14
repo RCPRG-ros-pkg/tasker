@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+import rospy 
+from multitasker.srv import *
+from multitasker.msg import *
+import time
+from std_msgs.msg import *
+import multiprocessing
+import threading
+import datetime
+import roslaunch
+import os
+
+stop_trigger = False
+
+current_state = TaskState()
+
+def handleNewTaskRequest(req):
+    set_new_task = False
+    status = False
+    global current_state
+    print "NEW request!\n \t app: "+ req.application +"\n \t priority: "+ str(req.priority)
+    current_task_namespace = current_state.node_name + "/multitasking"
+    print "NAMESPACE: "+current_task_namespace
+    hold_conditions = rospy.ServiceProxy(current_task_namespace+'/get_hold_conditions', HoldConditions)
+    hold_response = hold_conditions()
+    print "HOLD RESPONSE: \n" + str(hold_response)
+    if req.priority > hold_response.priority:
+        set_new_task = True
+    else:
+        status = False
+        return
+    hold_topic = current_task_namespace+"/hold_now"
+    resume_topic = current_task_namespace+"/resume_now"
+    print "HOLD TOPIC: "+hold_topic
+    pub_hold = rospy.Publisher(hold_topic, String, queue_size=10)
+    pub_res = rospy.Publisher(resume_topic, String, queue_size=10)
+    time.sleep(2)
+    pub_hold.publish("")
+    while not current_state.is_held == True:
+        print "Waiting for current task to hold"
+        time.sleep(1)
+        # rospy.spinOnce()
+
+    package = 'multitasker' 
+    executable = req.application
+    name = "guide_2"
+    cmd = "rosrun "+ package + " "+executable+" "+name
+    os.system(cmd)
+    # node = roslaunch.core.Node(package, executable)
+
+    # launch = roslaunch.scriptapi.ROSLaunch() 
+    # launch.start()
+
+    # process = launch.launch(node) 
+    #while process.is_alive():
+        # print "Waiting for the new task to finish"
+        # time.sleep(1)
+
+    # process.stop()
+    pub_res.publish("")
+    status = True
+    return status
+
+
+def setCurrentState(data):
+    global current_state
+    current_state = data
+    print data
+    return
+
+if __name__== "__main__":
+    rospy.init_node("taskHarmonizer")
+    srv_name = rospy.get_name()+'/new_task'
+    s = rospy.Service(srv_name, TaskRequest, handleNewTaskRequest)
+    pub_state = rospy.Subscriber('current_state', TaskState, setCurrentState)
+    rospy.spin()
+
+
+

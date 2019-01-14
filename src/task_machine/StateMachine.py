@@ -1,5 +1,6 @@
 import rospy 
 from multitasker.srv import *
+from multitasker.msg import *
 import time
 from std_msgs.msg import *
 import multiprocessing
@@ -111,18 +112,21 @@ class StateMachine:
         self.endStates = []
         self.priority = 0
         self.start_deadline = -1
+        node_namespace = rospy.get_name() + "/multitasking"
         srv_name = rospy.get_name()+'/multitasking/get_hold_conditions'
         self.s = rospy.Service(srv_name, HoldConditions, self.getHoldConditions)
         self.current_state = ''
         self.task_state = 0 # initialized_not_running
         self.current_state_m_thread = 0
-        self.sub_hold = rospy.Subscriber("hold_now", String, self.onHold)
-        self.sub_res = rospy.Subscriber("resume_now", String, self.onResume)
+        self.sub_hold = rospy.Subscriber(node_namespace+"/hold_now", String, self.onHold)
+        self.sub_res = rospy.Subscriber(node_namespace+"/resume_now", String, self.onResume)
         self.q = multiprocessing.Queue()
         self.fsm_stop_event = threading.Event()
         self.resumeState = None
         self.resumeData = None
-        self.pub_state = rospy.Publisher('current_state', String, queue_size=10)
+        self.pub_state = rospy.Publisher('current_state', TaskState, queue_size=10)
+        self.time_to_hold = -1 
+        self.time_to_finish = -1
 
     def onHold(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
@@ -197,15 +201,23 @@ class StateMachine:
         cargo_out = None
         FSM_holded = False
         print "cargo: ", cargo_in
+        my_state = TaskState()
+        my_state.node_name = rospy.get_name()
+        my_state.is_held = False
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "END STATES: ", self.endStates+"\n")
         try:
             while True:
-                self.pub_state.publish( "| "+str(self.current_state) + " | with input: "+ str(cargo_in))
+                # print "1"
+                my_state.state_name = str(self.current_state) 
+                my_state.state_input = str(cargo_in) 
+                self.pub_state.publish( my_state)
+                # print "2"
 
                 # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "ev1: ", event.isSet()+"\n")
                 self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "RUNNING STATE: "+ str(self.current_state.upper())+"\n")
                 thread = FSMThread(target = self.handlers[self.current_state.upper()][0], cargo_in = cargo_in, event_in = state_stop_event, event_out = state_stopped)
                 thread.start()
+                # print "3"
                 while True:
                     self.print_log.write( "thread: "+ str(thread.is_alive())+"\n")
                     self.print_log.write( "event: "+ str(event_in.isSet())+"\n")
@@ -233,6 +245,7 @@ class StateMachine:
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "GOT:"+"\n")
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "newState: ", newState+"\n")
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "cargo_out: ", cargo_out+"\n")
+                    # print "4"
                     if event_in.isSet():
                         self.print_log.write("Setting state event\n")
                         state_stop_event.set()
@@ -246,11 +259,14 @@ class StateMachine:
                                 break
                             self.current_state = newState
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM launched newState to hold task: "+str(newState.upper())+"\n")
-                            self.pub_state.publish( "| "+str(self.current_state) + " | with input: "+ str(cargo_out))
+                            my_state.state_name = self.current_state
+                            my_state.state_input = str(cargo_out)
+                            self.pub_state.publish(my_state)
                             (self.resumeState, self.resumeData) = self.handlers[self.current_state.upper()][0](cargo_in=cargo_out)
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
                             FSM_holded = True 
-                            # self.pub_state.publish( str(self.current_state) + " | data: "+ str(cargo_out))
+                            my_state.is_held = True
+                            self.pub_state.publish(my_state)
                             break   
                         else:
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM state is not stopped: "+"\n")

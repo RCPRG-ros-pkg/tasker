@@ -7,14 +7,15 @@ project(multitasker)
     COMPONENTS message_generation std_msgs rospy)
 
   # Declare the message files to be built
-  #add_message_files(FILES
-  #  MyMessage1.msg
+  add_message_files(FILES
+    TaskState.msg
   #  MyMessage2.msg
-  #)
+  )
 
 
   # Declare the service files to be built
   add_service_files(FILES
+    TaskRequest.srv
     LaunchConditions.srv
     HoldConditions.srv
     SchedulingConditions.srv
@@ -68,4 +69,5 @@ execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile-pddl-planner.sh
   catkin_install_python(PROGRAMS 
   		bin/exampleState
   		bin/txt_guideHuman
+  		bin/txt_hazardDetection
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

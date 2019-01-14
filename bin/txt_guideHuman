@@ -4,6 +4,7 @@ from task_machine.StateMachine import * #StateMachine
 import rospy
 import time 
 import datetime
+import sys
 def blocking_call(queue):
     try:
         args = queue.get()
@@ -164,7 +165,8 @@ def final(cargo_in):
 
 if __name__== "__main__":
     try:
-        rospy.init_node("blockingState")
+        node_name = sys.argv[1]
+        rospy.init_node(node_name)
         f1=open('./blockin_log', 'w+')
         f2=open('./state_m_log', 'w+')
         m = StateMachine(f2)
