@@ -226,7 +226,14 @@ def teleop(cargo_in, event_in, event_out):
     return ("goodbye_human", None)
 #TO DO!
 def hold_teleop(cargo_in):
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "hold_teleop"+"\n")
+    print("----------"+"\n")
+    say = "I got new task, I'll be back and the care giver will contact you later on"
+    print( "\t SAY_METHOD("+ str( say)+")\n")
+    return ("return_on_acceptance", ["Zdzisiu", [1,2], True])
 
+#TO DO!
 def hold_greet(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "SAY"+"\n")
