@@ -127,6 +127,7 @@ class StateMachine:
         self.pub_state = rospy.Publisher('current_state', TaskState, queue_size=10)
         self.time_to_hold = -1 
         self.time_to_finish = -1
+        self.harmonizer_resumeScenario = None
 
     def onHold(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
@@ -151,6 +152,7 @@ class StateMachine:
     def onResume(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
         self.task_state = 4 # Resuming
+        self.harmonizer_resumeScenario = param
         time.sleep(0.1)  
 
         # self.current_state_m_thread.join()
@@ -246,7 +248,7 @@ class StateMachine:
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "newState: ", newState+"\n")
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "cargo_out: ", cargo_out+"\n")
                     # print "4"
-                    if event_in.isSet():
+                    if event_in.isSet() or state_stop_event.isSet():
                         self.print_log.write("Setting state event\n")
                         state_stop_event.set()
                         while thread.is_alive():
@@ -312,7 +314,7 @@ class StateMachine:
                 if self.task_state == 4:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Resuming fsm"+"\n")
                     self.current_state = self.resumeState
-                    cargo = self.resumeData
+                    cargo = [self.resumeData, self.harmonizer_resumeScenario]
                     print cargo
                     self.fsm_stop_event.clear()
                     self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
