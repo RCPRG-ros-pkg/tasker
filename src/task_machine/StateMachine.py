@@ -29,7 +29,8 @@ class FSMThread(threading.Thread):
     def run(self):
         # cargo = self.cargo
         # event = self._stop_event
-        # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "thread event: "+ str(self._stop_event)+"\n")
+        print("\n"+str(datetime.datetime.now().time())+"\n"+ "target: "+ str(self.target)+"\n")
+        print("\n"+str(datetime.datetime.now().time())+"\n"+ "cargo_in: "+ str(self.cargo_in)+"\n")
         self._return = self.target(cargo_in = self.cargo_in, event_in = self._stop_event, event_out = self._stopped_event)
             # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ self._stop_event.is_set()+"\n")
             # time.sleep(0.2)
@@ -127,7 +128,7 @@ class StateMachine:
         self.pub_state = rospy.Publisher('current_state', TaskState, queue_size=10)
         self.time_to_hold = -1 
         self.time_to_finish = -1
-        self.harmonizer_resumeScenario = None
+        self.onResumeData = None
 
     def onHold(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
@@ -141,7 +142,6 @@ class StateMachine:
                 # self.current_state_m_thread.join(timeout=1.0)
                 time.sleep(0.1)
                 break # watchdog process daemon gets terminated
-        self.task_state = 3 # Holded
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "onHold waiting for resume"+"\n")
         # # self.handlers[self.current_state.upper()][1]("blah")
         # data = rospy.wait_for_message('/resume_now', Empty)  
@@ -151,8 +151,8 @@ class StateMachine:
 
     def onResume(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
-        self.task_state = 4 # Resuming
-        self.harmonizer_resumeScenario = param
+        self.task_state = 5 # Resuming
+        self.onResumeData = param
         time.sleep(0.1)  
 
         # self.current_state_m_thread.join()
@@ -205,7 +205,7 @@ class StateMachine:
         print "cargo: ", cargo_in
         my_state = TaskState()
         my_state.node_name = rospy.get_name()
-        my_state.is_held = False
+        my_state.status = 0
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "END STATES: ", self.endStates+"\n")
         try:
             while True:
@@ -217,9 +217,13 @@ class StateMachine:
 
                 # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "ev1: ", event.isSet()+"\n")
                 self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "RUNNING STATE: "+ str(self.current_state.upper())+"\n")
+                # self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "Handler: "+ str(self.handlers[self.current_state.upper()][0])+"\n")
                 thread = FSMThread(target = self.handlers[self.current_state.upper()][0], cargo_in = cargo_in, event_in = state_stop_event, event_out = state_stopped)
+                self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "Starting: "+ str(self.current_state.upper())+"\n")
+                
                 thread.start()
                 # print "3"
+                self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "Started: "+ str(self.current_state.upper())+"\n")
                 while True:
                     self.print_log.write( "thread: "+ str(thread.is_alive())+"\n")
                     self.print_log.write( "event: "+ str(event_in.isSet())+"\n")
@@ -248,7 +252,7 @@ class StateMachine:
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "newState: ", newState+"\n")
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "cargo_out: ", cargo_out+"\n")
                     # print "4"
-                    if event_in.isSet() or state_stop_event.isSet():
+                    if event_in.isSet() or state_stop_event.isSet() or state_stopped.isSet():
                         self.print_log.write("Setting state event\n")
                         state_stop_event.set()
                         while thread.is_alive():
@@ -267,7 +271,7 @@ class StateMachine:
                             (self.resumeState, self.resumeData) = self.handlers[self.current_state.upper()][0](cargo_in=cargo_out)
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
                             FSM_holded = True 
-                            my_state.is_held = True
+                            my_state.status = 1
                             self.pub_state.publish(my_state)
                             break   
                         else:
@@ -281,12 +285,15 @@ class StateMachine:
                     
                     time.sleep(0.1)
                 self.print_log.write( "ev2: "+ str(event_in.isSet())+"\n")
-                if event_in.isSet() and FSM_holded:
+                if state_stop_event.isSet() and FSM_holded:
+                    self.task_state = 3
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM finished"+"\n")
                     break
                 if self.current_state.upper() in self.endStates:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM reached end state: "+ str(self.current_state)+"\n")
-                    self.task_state = 5
+                    self.task_state = 6
+                    my_state.status = 2
+                    self.pub_state.publish(my_state)
                     break
         finally:
             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM bye"+"\n")
@@ -311,16 +318,21 @@ class StateMachine:
                     self.current_state_m_thread.join()
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM joined thread"+"\n")
                     self.fsm_stop_event.clear()
+                    self.task_state = 4
                 if self.task_state == 4:
+                    self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Waiting for resume"+"\n")
+
+                if self.task_state == 5:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Resuming fsm"+"\n")
                     self.current_state = self.resumeState
-                    cargo = [self.resumeData, self.harmonizer_resumeScenario]
+                    cargo = [self.resumeData, self.onResumeData]
                     print cargo
+                    print self.current_state
                     self.fsm_stop_event.clear()
                     self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
                     self.current_state_m_thread.start()
                     self.task_state = 1    
-                if self.task_state == 5:
+                if self.task_state == 6:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM finished, terminating whole task" +"\n")
                     while self.current_state_m_thread.is_alive():
                         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")

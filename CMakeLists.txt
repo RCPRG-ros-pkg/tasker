@@ -70,4 +70,5 @@ execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile-pddl-planner.sh
   		bin/exampleState
   		bin/txt_guideHuman
   		bin/txt_hazardDetection
+  		bin/txt_human_fell
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

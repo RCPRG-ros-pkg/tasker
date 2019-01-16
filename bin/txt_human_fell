@@ -5,6 +5,12 @@ import rospy
 import time 
 import datetime
 import sys
+
+human_name="Zdzisiu"
+human_pose=[0,0]
+is_return_call=False
+human_response=None
+
 def blocking_call(queue):
     try:
         args = queue.get()
@@ -33,23 +39,37 @@ def start(cargo_in, event_in, event_out):
     print("\t cargo: "+ str( cargo_in)+"\n")
     print("\t STATE_EVENT: "+ str( event_in.isSet())+"\n")
     print( ""+"\n")
+
+    global human_name
+    global human_pose
+    global is_return_call
+    global human_response
+    human_name="Zdzisiu"
+    is_return_call=False
+    human_response=None    
     if event_in.isSet():
         event_out.set()
         print( ""+"\n")
         print( "set HOLD"+"\n")
         print( ""+"\n")
         return ("first_hold", "data required to hold")
-    return ("move_to_human", ["Zdzisiu", None, False])
+    return ("move_to_human", None)
     
 def move_to_human(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "move_to_human"+"\n")
     print("----------"+"\n")
-    print( "\t args [<human_name>, <init_human_pose>, <is it a return call>]: "+ str( cargo_in)+"\n")
+    print( "\t args [None]: "+ str( cargo_in)+"\n")
+    global human_name
+    global human_pose
+    global is_return_call
+    global human_response
     print( "\t Get pose of the human "+"\n")
+    # get human pose
+    human_pose=[10,10]
     i = 0
     while i < 10:
-        print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
+        print( "\t Moving to the human: "+ str( human_name)+"\n")
         print( "\t Checking if the destination is reached"+"\n")
     # run_blocking(blocking_call, cargo_in, event)
         if event_in.isSet():
@@ -57,17 +77,28 @@ def move_to_human(cargo_in, event_in, event_out):
             print( ""+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return ("hold_moving", "stop robot")
+            return ("hold_moving", None)
         time.sleep(1)
         i+=1
-    return ("look_for_human", cargo_in)
+    return ("look_for_human", None)
+
+def hold_moving(cargo_in):
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print("hold_moving"+"\n")
+    print( "----------"+"\n")
+    print("\t args : "+ str( cargo_in)+"\n")
+    # run_blocking(blocking_call, cargo_in, event)
+    global human_pose
+    print( "\t Update pose of the human "+"\n")
+    # get human pose
+    human_pose=[10,10]
+    return ("move_to_human", None)
 
 def look_for_human(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "look_for_human"+"\n")
     print("----------"+"\n")
-    print( "\t args [<human_name>, <init_human_pose>, <is a resume call>]: "+ str( cargo_in)+"\n")
-    print( "\t Get pose of the human "+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
     i = 0
     while i < 10:
         print( "\t Visiual search for human \n")
@@ -76,27 +107,32 @@ def look_for_human(cargo_in, event_in, event_out):
             print( ""+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return ("hold_moving", "stop robot")
+            return ("hold_moving", None)
         time.sleep(1)
         i+=1
-    if cargo_in[2]:
-        return ("send_report", [cargo_in[0],None,cargo_in[1]])
-    return ("check_consciousness", cargo_in)
+    global is_return_call
+    if is_return_call:
+        return ("send_report", None)
+    global human_pose
+    print( "\t Update pose of the human "+"\n")
+    # get human pose
+    human_pose=[11,11]
 
-def hold_moving(cargo_in):
-    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
-    print("hold_moving"+"\n")
-    print( "----------"+"\n")
-    print("\t args: "+ str( cargo_in)+"\n")
-    # run_blocking(blocking_call, cargo_in, event)
-    return ("move_to_human", ["Zdzisiu",[10,20], False])
+    return ("check_consciousness", None)
 
 
 def check_consciousness(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "check_consciousness"+"\n")
     print("----------"+"\n")
-    say = "Hello! Mr "+cargo_in[0]+ "! Can you hear me? How do you feel?"
+    print( "\t args [<human_name>, <init_human_pose>, <is a resume call>]: "+ str( cargo_in)+"\n")
+
+    global human_name
+    global human_pose
+    global is_return_call
+    global human_response
+
+    say = "Hello! Mr "+human_name+ "! Can you hear me? How do you feel?"
     response = "Uh! I fell, but I'm fine. Just need a hand to stand up."
     i=0
     print( "\t SAY_METHOD("+ str(say)+")\n")
@@ -108,7 +144,8 @@ def check_consciousness(cargo_in, event_in, event_out):
             print( ""+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return ("hold_greet", "Oh! I'm sorry but I got very important request. Please wait, I'll come back")
+            sentence = "Oh! I'm sorry but I got very important request. Please wait, I'll come back"
+            return ("hold_talk", sentence)
         i+=1
         time.sleep(1)
     while i < 5:
@@ -119,34 +156,38 @@ def check_consciousness(cargo_in, event_in, event_out):
             print( ""+"\n")
             print( "set HOLD"+"\n")
             print( ""+"\n")
-            return ("hold_greet", "Oh! I'm sorry but I got very important request. Please wait, I'll come back")
+            sentence = "Oh! I'm sorry but I got very important request. Please wait, I'll come back"
+            return ("hold_talk", sentence)
         i+=1
         time.sleep(1)
     response = "Uh! I fell, but I'm fine. Just need a hand to stand up."
-    cargo_out = [cargo_in[0], response,[10,10]]
-    return ("send_report", cargo_out)
+    # cargo_out = [cargo_in[0], response,[10,10]]
+    human_response = response
+    return ("send_report", None)
 
 def send_report(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "send_report"+"\n")
     print("----------"+"\n")
-    print( "\t args <human_name, human response, human pose>: "+ str( cargo_in)+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
     # if the response is None, it is a return call and the old report was saved
-    if cargo_in[1] == None:
+    global human_response
+    if human_response == None:
         print( "Loading previous report"+"\n")
+        human_response = "It is a previous report"
     i = 0
     while i < 3:
         print( "\t Preparing and sending report"+")\n")
         print( "\t HOLD IS UNAVAILABLE"+"\n")
         i+=1
         time.sleep(1)
-    return ("wait_for_acceptance", cargo_in[1]) 
+    return ("wait_for_acceptance", None) 
 
 def wait_for_acceptance(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "wait_for_acceptance"+"\n")
     print("----------"+"\n")
-    print( "\t args <human pose>: "+ str( cargo_in)+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
     i = 0
     while i < 3:
         print( "\t Waiting 3 secs for the report acceptance, after this time the task will be held"+")\n")
@@ -154,48 +195,61 @@ def wait_for_acceptance(cargo_in, event_in, event_out):
         i+=1
         time.sleep(1)
     got_acceptance = True
-    to_teleop = True
+    to_teleop = False
     if got_acceptance and not to_teleop:
         return ("goodbye_human", None) 
     if to_teleop:
         return ("teleop", None) 
     else:
         event_out.set()
+        event_in.set()
         print ("I got no response from care giver. I'll be back If there will be necessity")
         print ("Saving the report")
-        return ("hold_wait_for_acceptance", cargo_in) 
+        return ("hold_wait_for_acceptance", None) 
 
 def hold_wait_for_acceptance(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "hold_wait_for_acceptance"+"\n")
     print("----------"+"\n")
-    print( "\t args <human pose>: "+ str( cargo_in)+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
     human_name = "Zdzisiu"
     cargo_out = [human_name, cargo_in]
-    return ("return_on_acceptance", cargo_out)
+    print ("Get decission of care giver")
+    global is_return_call
+    is_return_call = False
+    return ("return_on_acceptance", None)
    
 def return_on_acceptance(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "return_on_acceptance"+"\n")
     print("----------"+"\n")
-    print( "\t args <human_name, init_human_pose, return_scenario>: "+ str( cargo_in)+"\n")
-    human_name = "Zdzisiu"
-    cargo_out = [human_name, cargo_in, True]
-    if cargo_in[2] == 0:
-        return ("finish", None)
-    if cargo_in[2] == 1:
-        return ("move_to_human", cargo_out)
+    print( "\t args <resume_data, mentor_response>: "+ str( cargo_in)+"\n")
+
+    global human_name
+    global human_pose
+    global human_response
+    mentor_response = cargo_in[1].data
+    print mentor_response
+    print cargo_in[1]
+
+    if mentor_response == "0":
+        return ("final", None)
+    if mentor_response == "1":
+        return ("move_to_human", None)
     else:
-        return ("finish", None)
+        return ("final", None)
 
 def teleop(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "teleop"+"\n")
     print("----------"+"\n")
     print( "\t args <None>: "+ str( cargo_in)+"\n")
+    global human_name
+    global human_pose
+    global human_response
     i = 0
     teleoper_decision = None
-    # czekaj aż człowiek da sygnał o zakończeniu teleop
+    # czekaj az czlowiek da sygnal o zakonczeniu teleop
     while i < 10:
         k=0
         print( "\t Human is teleoping the robot\n")
@@ -213,13 +267,13 @@ def teleop(cargo_in, event_in, event_out):
                 k=k+1
                 teleoper_decision = "dont_interrupt"
             print "TELEOPER said: "+str(teleoper_decision)
-            if teleoper_decision = "interrupt_and_not_return":
+            if teleoper_decision == "interrupt_and_not_return":
                 event_out.set()
                 return ("final", None)
-            if teleoper_decision = "interrupt_and_return":
+            if teleoper_decision == "interrupt_and_return":
                 event_out.set()
-                return ("hold_teleop", [10,20])
-            if teleoper_decision = "dont_interrupt":
+                return ("hold_teleop", None)
+            if teleoper_decision == "dont_interrupt":
                 pass
         i+=1
         time.sleep(1)
@@ -231,50 +285,24 @@ def hold_teleop(cargo_in):
     print("----------"+"\n")
     say = "I got new task, I'll be back and the care giver will contact you later on"
     print( "\t SAY_METHOD("+ str( say)+")\n")
-    return ("return_on_acceptance", ["Zdzisiu", [1,2], True])
+    print ("Set a resume call")
+    global is_return_call
+    is_return_call = True
+    return ("return_on_acceptance", None)
 
 #TO DO!
-def hold_greet(cargo_in):
+def hold_talk(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "SAY"+"\n")
     print("----------"+"\n")
     print( "\t SAY_METHOD("+ str( cargo_in)+")\n")
-    return ("move_to_human", [1,2])
-
-def guide_human(cargo_in, event_in, event_out):
-    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
-    print( "guide_human"+"\n")
-    print("----------"+"\n")
-    print( "\t args <destination>: "+ str( cargo_in)+"\n")
-    i = 0
-    while i < 10:
-        print( "\t Moving to the destination: "+ str( cargo_in)+"\n")
-        print( "\t Checking if the human is following me"+"\n")
-        if event_in.isSet():
-            event_out.set()
-            print( ""+"\n")
-            print( "set HOLD"+"\n")
-            print( ""+"\n")
-            return ("hold_guide", None)
-        i+=1
-        time.sleep(1)
-    return ("goodbye_human", None)
-
-def hold_guide(cargo_in):
-    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
-    print("hold_guide"+"\n")
-    print( "----------"+"\n")
-    print("\t args: "+ str( cargo_in)+"\n")
-    print( "\t Approaching human "+"\n")
-    print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
-    print( "\t Go aside "+"\n")
-    return ("move_to_human", ["Zdzisiu",[10,20]])
+    return ("move_to_human", None)
 
 def goodbye_human(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "goodbye_human"+"\n")
     print("----------"+"\n")
-    print( "\t args <destination>: "+ str( cargo_in)+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
     print( "\t SAY_METHOD("+ "My task is finished, goodbye"+")\n")
     i = 0
     while i < 5:
@@ -322,8 +350,11 @@ if __name__== "__main__":
         m.add_state("go_to_dock", go_to_dock, None)
         m.add_state("teleop", teleop, None)
         m.add_state("final", final, end_state=True)
-        m.add_state("hold_greet", hold_greet, None)
+        m.add_state("hold_talk", hold_talk, None)
         m.add_state("hold_moving", hold_moving, None)
+        m.add_state("goodbye_human", goodbye_human, None)
+        m.add_state("return_on_acceptance", return_on_acceptance, None)
+
         m.set_start("Start")
         m.run("Python is great")
     #m.run("Python is difficult")

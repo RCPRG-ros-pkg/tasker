@@ -12,6 +12,7 @@ import roslaunch
 import os
 
 stop_trigger = False
+is_any_task_launched = False
 
 current_state = TaskState()
 
@@ -19,32 +20,36 @@ def handleNewTaskRequest(req):
     set_new_task = False
     status = False
     global current_state
+    is_any_task_launched_local = current_state.status
     print "NEW request!\n \t app: "+ req.application +"\n \t priority: "+ str(req.priority)
     current_task_namespace = current_state.node_name + "/multitasking"
     print "NAMESPACE: "+current_task_namespace
-    hold_conditions = rospy.ServiceProxy(current_task_namespace+'/get_hold_conditions', HoldConditions)
-    hold_response = hold_conditions()
-    print "HOLD RESPONSE: \n" + str(hold_response)
-    if req.priority > hold_response.priority:
-        set_new_task = True
-    else:
-        status = False
-        return
-    hold_topic = current_task_namespace+"/hold_now"
-    resume_topic = current_task_namespace+"/resume_now"
-    print "HOLD TOPIC: "+hold_topic
-    pub_hold = rospy.Publisher(hold_topic, String, queue_size=10)
-    pub_res = rospy.Publisher(resume_topic, String, queue_size=10)
-    time.sleep(2)
-    pub_hold.publish("")
-    while not current_state.is_held == True:
-        print "Waiting for current task to hold"
-        time.sleep(1)
+    print "cuRRENT TASK STATUS: "+str(is_any_task_launched_local)
+    if is_any_task_launched_local == 0:
+        hold_conditions = rospy.ServiceProxy(current_task_namespace+'/get_hold_conditions', HoldConditions)
+        hold_response = hold_conditions()
+        print "HOLD RESPONSE: \n" + str(hold_response)
+        if req.priority > hold_response.priority:
+            set_new_task = True
+        else:
+            status = False
+            return
+        hold_topic = current_task_namespace+"/hold_now"
+        resume_topic = current_task_namespace+"/resume_now"
+        print "HOLD TOPIC: "+hold_topic
+        pub_hold = rospy.Publisher(hold_topic, String, queue_size=10)
+        pub_res = rospy.Publisher(resume_topic, String, queue_size=10)
+        time.sleep(2)
+        pub_hold.publish("")
+        while current_state.status != 1:
+            print "Waiting for current task to hold"
+            time.sleep(1)
         # rospy.spinOnce()
 
     package = 'multitasker' 
     executable = req.application
     cmd = "rosrun "+ package + " "+executable
+    is_any_task_launched=True
     os.system(cmd)
     # node = roslaunch.core.Node(package, executable)
 
@@ -57,7 +62,9 @@ def handleNewTaskRequest(req):
         # time.sleep(1)
 
     # process.stop()
-    pub_res.publish("")
+    print "ENDED NEW TASK!!!!!!!!!!!!!S"
+    if is_any_task_launched_local == 0:
+        pub_res.publish("")
     status = True
     return status
 
@@ -65,11 +72,13 @@ def handleNewTaskRequest(req):
 def setCurrentState(data):
     global current_state
     current_state = data
-    print data
+    # print "NEW CY=URRENT sTATE: ", data
     return
 
 if __name__== "__main__":
+    global current_state
     rospy.init_node("taskHarmonizer")
+    current_state.status = None
     srv_name = rospy.get_name()+'/new_task'
     s = rospy.Service(srv_name, TaskRequest, handleNewTaskRequest)
     pub_state = rospy.Subscriber('current_state', TaskState, setCurrentState)
