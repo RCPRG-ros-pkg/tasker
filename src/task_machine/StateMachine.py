@@ -228,6 +228,8 @@ class StateMachine:
                     self.print_log.write( "thread: "+ str(thread.is_alive())+"\n")
                     self.print_log.write( "event: "+ str(event_in.isSet())+"\n")
                     self.print_log.write("state_stop_event: "+ str(state_stopped.isSet())+"\n")
+                    # if the state is finished and was not stoppped, set new state basing on the return 
+                    # of the previous state
                     if (not thread.stopped() and not thread.is_alive() and not state_stopped.isSet()):
                         self.print_log.write( "NEW STATE "+"\n")
                         (newState, cargo_out) = thread.join()
@@ -252,28 +254,40 @@ class StateMachine:
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "newState: ", newState+"\n")
                         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "cargo_out: ", cargo_out+"\n")
                     # print "4"
+
+                    # if the hold event of the FSM was set or the state set its own hold event
                     if event_in.isSet() or state_stop_event.isSet() or state_stopped.isSet():
                         self.print_log.write("Setting state event\n")
+                        # set state hold event
                         state_stop_event.set()
+                        # wait for state to finish
                         while thread.is_alive():
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM waits for current state to terminate"+"\n")
                             time.sleep(1)
+                        # if the state set its own hold event, it wants to run a hold state
                         if state_stopped.isSet():
                             (newState, cargo_out) = thread.join()
+                            # set next (hold) state
                             self.current_state = newState
                             if self.current_state.upper() in self.endStates:
                                 break
                             self.current_state = newState
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM launched newState to hold task: "+str(newState.upper())+"\n")
+                            # fill current_state topic data
                             my_state.state_name = self.current_state
                             my_state.state_input = str(cargo_out)
                             self.pub_state.publish(my_state)
+                            # run hold state
                             (self.resumeState, self.resumeData) = self.handlers[self.current_state.upper()][0](cargo_in=cargo_out)
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
                             FSM_holded = True 
+                            # update data in current_state topic
                             my_state.status = 1
                             self.pub_state.publish(my_state)
                             break   
+                        # if the FSM event was set, the state was finished, but the state didn't 
+                        # want to finish and forced to move to next state (we hope the next state 
+                        # will handle the hold event) 
                         else:
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM state is not stopped: "+"\n")
                             (newState, cargo_out) = thread.join()
@@ -281,14 +295,22 @@ class StateMachine:
                             cargo_in = cargo_out
                             thread = FSMThread(target = self.handlers[self.current_state.upper()][0], cargo_in = cargo_in, event_in = state_stop_event, event_out = state_stopped)
                             thread.start()
+                            # fill current_state topic data
+                            my_state.state_name = self.current_state
+                            my_state.state_input = str(cargo_out)
+                            my_state.status = 0
+                            self.pub_state.publish(my_state)
 
                     
                     time.sleep(0.1)
                 self.print_log.write( "ev2: "+ str(event_in.isSet())+"\n")
+                # the state set the event and the hold state was performed
                 if state_stop_event.isSet() and FSM_holded:
+                    # set the task state as holded
                     self.task_state = 3
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM finished"+"\n")
                     break
+                # if the next state is the end state, 
                 if self.current_state.upper() in self.endStates:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM reached end state: "+ str(self.current_state)+"\n")
                     self.task_state = 6

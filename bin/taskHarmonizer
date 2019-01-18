@@ -41,8 +41,8 @@ def handleNewTaskRequest(req):
         pub_res = rospy.Publisher(resume_topic, String, queue_size=10)
         time.sleep(2)
         pub_hold.publish("")
-        while current_state.status != 1:
-            print "Waiting for current task to hold"
+        while current_state.status not in [1,2]:
+            print "Waiting for current task to hold or terminate"
             time.sleep(1)
         # rospy.spinOnce()
 
