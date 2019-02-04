@@ -5,8 +5,21 @@ import time
 import datetime
 import sys
 from multitasker.msg import *
+#string node_name 
+#string state_name
+#string state_input
+# task state, 0 = running, 1 = held, 2 = finished
+#int8 status
 
+import numpy
+
+final_table = numpy.array()
 def gotState(self, data):
+	global final_table
+	final_table[i][0] = data.node_name
+	final_table[i][1] = data.state_name
+	final_table[i][2] = data.state_input
+	final_table[i][3] = data.status
 	pass
 
 if __name__== "__main__":
@@ -17,5 +30,7 @@ if __name__== "__main__":
 	except Exception as e:
 		raise e
 	finally:
+		global final_table
+		numpy.savetxt("mydata.csv", final_table)
 		pass
 
