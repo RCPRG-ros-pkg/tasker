@@ -11,23 +11,64 @@ from multitasker.msg import *
 # task state, 0 = running, 1 = held, 2 = finished
 #int8 status
 
-import numpy
+import csv
 
-final_table = numpy.arrray()
-def gotState(self, data):
-	global final_table
-	final_table = numpy.vstack([final_table, [data.node_name, data.state_name,str(data.state_input),str(data.status)])
+# final_table
+table = [[],[],[],[]]
+row_id = 0
+apps = [] 
+states = []
+inputs = []
+status = []
+
+def gotState(data):
+	global apps 
+	global table
+	global row_id  
+	global states
+	global inputs
+	global status
+	table[row_id] = [data.node_name, data.state_name, str(data.state_input), str(data.status)]
+	# apps.append(data.node_name)
+	# states.append(data.state_name)
+	# inputs.append(str(data.state_input))
+	# status.append(str(data.status))
+	row_id = row_id + 1
 	pass
 
 if __name__== "__main__":
 	try:
+		rospy.init_node("harmonization_table_generator")
 		sub = rospy.Subscriber("/current_state", TaskState, gotState)
 		rospy.spin()
 
 	except Exception as e:
 		raise e
 	finally:
-		global final_table
-		numpy.savetxt("mydata.csv", final_table)
+		global apps 
+		global states
+		global inputs
+		global status
+		global table
+		global row_id 
+		# rows = [ table[], 
+  #                states,
+  #                inputs,
+  #                status
+  #               ] 
+		fields = ['app', 'state', 'input', 'status']  
+		# name of csv file 
+		filename = "university_records.csv"
+		  
+		# writing to csv file 
+		with open(filename, 'w') as csvfile: 
+		    # creating a csv writer object 
+			csvwriter = csv.writer(csvfile) 
+		      
+			# writing the fields 
+			csvwriter.writerow(fields) 
+		      
+			# writing the data rows 
+			csvwriter.writerows(table)
 		pass
 
