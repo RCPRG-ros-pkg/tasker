@@ -13,13 +13,10 @@ from multitasker.msg import *
 
 import numpy
 
-final_table = numpy.array()
+final_table = numpy.arrray()
 def gotState(self, data):
 	global final_table
-	final_table[i][0] = data.node_name
-	final_table[i][1] = data.state_name
-	final_table[i][2] = data.state_input
-	final_table[i][3] = data.status
+	final_table = numpy.vstack([final_table, [data.node_name, data.state_name,str(data.state_input),str(data.status)])
 	pass
 
 if __name__== "__main__":
