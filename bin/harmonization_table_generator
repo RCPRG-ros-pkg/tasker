@@ -30,7 +30,8 @@ def gotState(data):
 	global status
 	state_name2 = data.state_name.replace("_", "\\_")
 	node_name2 = data.node_name.replace("_", "\\_")
-	table.append([node_name2, state_name2, str(data.status)])
+	input2 = data.state_input.replace("_", "\\_")
+	table.append([node_name2, state_name2, str(input2)])
 	# apps.append(data.node_name)
 	# states.append(data.state_name)
 	# inputs.append(str(data.state_input))
@@ -58,7 +59,7 @@ if __name__== "__main__":
   #                inputs,
   #                status
   #               ] 
-		fields = ['app', 'state', 'status']  
+		fields = ['app', 'state', 'input']  
 		# name of csv file 
 		filename = "university_records.csv"
 		  

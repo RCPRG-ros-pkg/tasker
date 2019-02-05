@@ -6,6 +6,8 @@ import time
 import datetime
 import sys
 
+human_name = ""
+room_number = ""
 def blocking_call(queue):
     try:
         args = queue.get()
@@ -40,7 +42,7 @@ def start(cargo_in, event_in, event_out):
         print( "set HOLD"+"\n")
         print( ""+"\n")
         return ("first_hold", "data required to hold")
-    return ("move_to_human", ["Zdzisiu", None])
+    return ("move_to_human", [human_name, None])
     
 def move_to_human(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
@@ -61,15 +63,22 @@ def move_to_human(cargo_in, event_in, event_out):
             return ("hold_moving", "stop robot")
         time.sleep(1)
         i+=1
-    return ("greet", "Hello, your examination will be proceed in room 10. Please follow me")
+    say = ""
+    if cargo_in[1] == None:
+        say = "Hello, follow me please."
+    else:
+        say = "Hallo again, follow me please"
+    return ("greet", say)
 
 def hold_moving(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print("hold_moving"+"\n")
     print( "----------"+"\n")
     print("\t args: "+ str( cargo_in)+"\n")
+    global human_name
+    global room_number
     # run_blocking(blocking_call, cargo_in, event)
-    return ("move_to_human", ["Zdzisiu",[10,20]])
+    return ("move_to_human", [human_name,[10,20]])
 
 
 def greet(cargo_in, event_in, event_out):
@@ -90,7 +99,7 @@ def greet(cargo_in, event_in, event_out):
             return ("hold_greet", "Oh! I'm sorry but I got very important request. Please wait, I'll come back")
         i+=1
         time.sleep(1)
-    return ("guide_human", "room 10")
+    return ("guide_human", room_number)
 
 def hold_greet(cargo_in):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
@@ -126,14 +135,14 @@ def hold_guide(cargo_in):
     print( "\t Approaching human "+"\n")
     print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
     print( "\t Go aside "+"\n")
-    return ("move_to_human", ["Zdzisiu",[10,20]])
+    return ("move_to_human", [human_name,[10,20]])
 
 def goodbye_human(cargo_in, event_in, event_out):
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "goodbye_human"+"\n")
     print("----------"+"\n")
     print( "\t args <destination>: "+ str( cargo_in)+"\n")
-    print( "\t SAY_METHOD("+ "Here is the room 10"+")\n")
+    print( "\t SAY_METHOD("+ "Here is the room "+room_number+"\n")
     i = 0
     while i < 5:
         print( "\t Checking if the speech is over"+"\n")
@@ -168,6 +177,14 @@ if __name__== "__main__":
     try:
         da_name = sys.argv[1]
         isInterrupting = int(sys.argv[2])
+        global human_name
+        global room_number
+        if da_name == "guideHuman-1":
+            human_name = "John"
+            room_number = "10"
+        else:
+            human_name = "Alice"
+            room_number = "20"
         rospy.init_node(da_name, anonymous=False)
         f1=open('./blockin_log', 'w+')
         f2=open('./state_m_log', 'w+')
