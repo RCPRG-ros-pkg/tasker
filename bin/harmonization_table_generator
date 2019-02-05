@@ -14,7 +14,7 @@ from multitasker.msg import *
 import csv
 
 # final_table
-table = [[],[],[],[]]
+table = []
 row_id = 0
 apps = [] 
 states = []
@@ -28,7 +28,9 @@ def gotState(data):
 	global states
 	global inputs
 	global status
-	table[row_id] = [data.node_name, data.state_name, str(data.state_input), str(data.status)]
+	state_name2 = data.state_name.replace("_", "\\_")
+	node_name2 = data.node_name.replace("_", "\\_")
+	table.append([node_name2, state_name2, str(data.status)])
 	# apps.append(data.node_name)
 	# states.append(data.state_name)
 	# inputs.append(str(data.state_input))
@@ -56,7 +58,7 @@ if __name__== "__main__":
   #                inputs,
   #                status
   #               ] 
-		fields = ['app', 'state', 'input', 'status']  
+		fields = ['app', 'state', 'status']  
 		# name of csv file 
 		filename = "university_records.csv"
 		  

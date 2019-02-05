@@ -106,11 +106,13 @@ def run_blocking(handler, arguments = None, state_event = None):
     return ret
 
 class StateMachine:
-    def __init__(self, file):
+    def __init__(self, file, isInterrupting):
+        self.isInterrupting = isInterrupting
         self.print_log = file
         self.handlers = {}
         self.startState = None
         self.endStates = []
+        self.facultativeStates = []
         self.priority = 0
         self.start_deadline = -1
         node_namespace = rospy.get_name() + "/multitasking"
@@ -163,11 +165,13 @@ class StateMachine:
                                         time_to_finish=self.time_to_finish)
         #self.handlers[self.current_state.upper()][1]()
 
-    def add_state(self, name, handler, hold_handler = None, end_state=0):
+    def add_state(self, name, handler, hold_handler = None, end_state=0, facultative = 0):
         name = name.upper()
         self.handlers[name] = [handler, hold_handler]
         if end_state:
             self.endStates.append(name)
+        if facultative:
+            self.facultativeStates.append(name)
 
     def set_LaunchRules(self, priority = 0 , start_deadline = -1):
         name = name.upper()
@@ -311,7 +315,7 @@ class StateMachine:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM finished"+"\n")
                     break
                 # if the next state is the end state, 
-                if self.current_state.upper() in self.endStates:
+                if ((self.current_state.upper() in self.endStates) or (self.isInterrupting == 1 and self.current_state.upper() in self.facultativeStates)):
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM reached end state: "+ str(self.current_state)+"\n")
                     self.task_state = 6
                     my_state.status = 2

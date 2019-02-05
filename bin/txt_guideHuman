@@ -5,6 +5,7 @@ import rospy
 import time 
 import datetime
 import sys
+
 def blocking_call(queue):
     try:
         args = queue.get()
@@ -165,10 +166,12 @@ def final(cargo_in):
 
 if __name__== "__main__":
     try:
-        rospy.init_node("guide_human", anonymous=True)
+        da_name = sys.argv[1]
+        isInterrupting = int(sys.argv[2])
+        rospy.init_node(da_name, anonymous=False)
         f1=open('./blockin_log', 'w+')
         f2=open('./state_m_log', 'w+')
-        m = StateMachine(f2)
+        m = StateMachine(f2, isInterrupting)
         m.add_state("Start", start, None)
         m.add_state("move_to_human", move_to_human, None)
         m.add_state("hold_moving", hold_moving, None)
@@ -177,7 +180,7 @@ if __name__== "__main__":
         m.add_state("guide_human", guide_human, None)
         m.add_state("hold_guide", hold_guide, None)
         m.add_state("goodbye_human", goodbye_human, None)
-        m.add_state("go_to_dock", go_to_dock, None)
+        m.add_state("go_to_dock", go_to_dock, None, facultative = True)
         m.add_state("final", final, end_state=True)
         m.set_start("Start")
         m.run("Python is great")

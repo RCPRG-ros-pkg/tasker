@@ -17,11 +17,12 @@ is_any_task_launched = False
 current_state = TaskState()
 
 def handleNewTaskRequest(req):
+    isInterrupting = 0
     set_new_task = False
     status = False
     global current_state
     is_any_task_launched_local = current_state.status
-    print "NEW request!\n \t app: "+ req.application +"\n \t priority: "+ str(req.priority)
+    print "NEW request!\n \t app: "+ req.application +"\n \t priority: "+ str(req.priority)+"\n \t name: "+ str(req.da_name)
     current_task_namespace = current_state.node_name + "/multitasking"
     print "NAMESPACE: "+current_task_namespace
     print "cuRRENT TASK STATUS: "+str(is_any_task_launched_local)
@@ -45,10 +46,14 @@ def handleNewTaskRequest(req):
             print "Waiting for current task to hold or terminate"
             time.sleep(1)
         # rospy.spinOnce()
-
+    if current_state.status == 1:
+        isInterrupting = 1
+    else:
+        isInterrupting = 0
     package = 'multitasker' 
     executable = req.application
-    cmd = "rosrun "+ package + " "+executable
+    da_name = req.da_name
+    cmd = "rosrun "+ package + " "+executable+ " "+da_name+ " "+str(isInterrupting)
     is_any_task_launched=True
     os.system(cmd)
     # node = roslaunch.core.Node(package, executable)
