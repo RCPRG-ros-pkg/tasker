@@ -17,6 +17,7 @@ project(multitasker)
   add_service_files(FILES
     TaskRequest.srv
     LaunchConditions.srv
+    StartTask.srv
     HoldConditions.srv
     SchedulingConditions.srv
   )

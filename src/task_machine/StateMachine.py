@@ -1,6 +1,7 @@
 import rospy 
 from multitasker.srv import *
 from multitasker.msg import *
+from std_srvs.srv import Trigger, TriggerResponse
 import time
 from std_msgs.msg import *
 import multiprocessing
@@ -121,8 +122,10 @@ class StateMachine:
         self.current_state = ''
         self.task_state = 0 # initialized_not_running
         self.current_state_m_thread = 0
-        self.sub_hold = rospy.Subscriber(node_namespace+"/hold_now", String, self.onHold)
-        self.sub_res = rospy.Subscriber(node_namespace+"/resume_now", String, self.onResume)
+        self.res_srv = None
+        self.suspend_srv = None
+        # self.sub_hold = rospy.Subscriber(node_namespace+"/hold_now", String, self.onHold)
+        # self.sub_res = rospy.Subscriber(node_namespace+"/resume_now", String, self.onResume)
         self.q = multiprocessing.Queue()
         self.fsm_stop_event = threading.Event()
         self.resumeState = None
@@ -149,14 +152,14 @@ class StateMachine:
         # data = rospy.wait_for_message('/resume_now', Empty)  
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "onHold GOT resume"+"\n")
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ data +"\n")
-        return
+        return TriggerResponse()
 
     def onResume(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
         self.task_state = 5 # Resuming
         self.onResumeData = param
         time.sleep(0.1)  
-
+        return TriggerResponse()
         # self.current_state_m_thread.join()
     def getHoldConditions(self, param):
         #raise SigHold()
@@ -329,12 +332,16 @@ class StateMachine:
 
     def run(self, cargo):
         try:
+            self.res_srv = None
+            self.suspend_srv = None
+            node_namespace = rospy.get_name() + "/multitasking"
+            self.suspend_srv = rospy.Service(node_namespace+"/hold_now", Trigger, self.onHold)
             self.q = multiprocessing.Queue()
             self.current_state = self.startState
             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "start: "+ str(self.current_state)+"\n"+"\n")
             # handler = self.handlers[self.startState.upper()][0]
             self.task_state = 1 # Running
-        
+            print "AAAAA"
         # self.current_state_m_thread = multiprocessing.Process(target = self.run_state_machine, args = (cargo, self.q))
             self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
             self.current_state_m_thread.start()
@@ -347,8 +354,13 @@ class StateMachine:
                     self.task_state = 4
                 if self.task_state == 4:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Waiting for resume"+"\n")
-
+                    if self.res_srv == None:
+                        resume_srv_name = node_namespace+"/resume_now"
+                        self.res_srv = rospy.Service(resume_srv_name, Trigger, self.onResume)
+                        self.suspend_srv.shutdown()
                 if self.task_state == 5:
+                    self.res_srv.shutdown()
+                    self.res_srv = None
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Resuming fsm"+"\n")
                     self.current_state = self.resumeState
                     cargo = [self.resumeData, self.onResumeData]
@@ -357,6 +369,8 @@ class StateMachine:
                     self.fsm_stop_event.clear()
                     self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
                     self.current_state_m_thread.start()
+                    suspend_srv_name = node_namespace+"/hold_now"
+                    self.suspend_srv = rospy.Service(suspend_srv_name, Trigger, self.onHold)
                     self.task_state = 1    
                 if self.task_state == 6:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM finished, terminating whole task" +"\n")
@@ -364,7 +378,7 @@ class StateMachine:
                         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
-                    break          
+                    break
                 time.sleep(1)
                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "test"+"\n")
         finally:

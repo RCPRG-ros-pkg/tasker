@@ -1,5 +1,6 @@
 string application
-int8 priority
 string da_name
+int8 task_priority
+int16 task_deadline
 ---
-bool status 
+int8 status 

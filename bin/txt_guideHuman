@@ -5,9 +5,15 @@ import rospy
 import time 
 import datetime
 import sys
+from multitasker.srv import LaunchConditions,StartTask
 
 human_name = ""
 room_number = ""
+startFlag = False
+my_priority = 0 
+my_deadline = -1
+isInterrupting = False
+
 def blocking_call(queue):
     try:
         args = queue.get()
@@ -172,13 +178,39 @@ def go_to_dock(cargo_in, event_in, event_out):
 
 def final(cargo_in):
     return
+def startTask(data):
+    global startFlag
+    global isInterrupting
+    isInterrupting = data.isInterrupting
+    startFlag = True
+    return StartTaskResponse()
+
+def getPriority():
+    global my_priority
+    return my_priority
+def getDeadline():
+    global my_deadline
+    return my_deadline
+
+def getLaunchConditions(req):
+    l_conditions = LaunchConditionsResponse()
+    l_conditions.start_deadline = getDeadline()
+    l_conditions.task_priority = getPriority()
+    return l_conditions
 
 if __name__== "__main__":
     try:
         da_name = sys.argv[1]
-        isInterrupting = int(sys.argv[2])
+        global my_priority
+        my_priority = int(sys.argv[2])
+        global my_deadline
+        my_deadline = int(sys.argv[3])
+
         global human_name
         global room_number
+        global startFlag
+        global isInterrupting
+        
         if da_name == "guideHuman-1":
             human_name = "John"
             room_number = "10"
@@ -188,19 +220,30 @@ if __name__== "__main__":
         rospy.init_node(da_name, anonymous=False)
         f1=open('./blockin_log', 'w+')
         f2=open('./state_m_log', 'w+')
-        m = StateMachine(f2, isInterrupting)
-        m.add_state("Start", start, None)
-        m.add_state("move_to_human", move_to_human, None)
-        m.add_state("hold_moving", hold_moving, None)
-        m.add_state("greet", greet, None)
-        m.add_state("hold_greet", hold_greet, None)
-        m.add_state("guide_human", guide_human, None)
-        m.add_state("hold_guide", hold_guide, None)
-        m.add_state("goodbye_human", goodbye_human, None)
-        m.add_state("go_to_dock", go_to_dock, None, facultative = True)
-        m.add_state("final", final, end_state=True)
-        m.set_start("Start")
-        m.run("Python is great")
+        node_namespace = rospy.get_name() + "/multitasking"
+        cond_name = node_namespace + "/get_launch_conditions"
+        start_name = node_namespace + "/startTask"
+        conditions_srv = rospy.Service(cond_name, LaunchConditions, getLaunchConditions)
+        start_srv = rospy.Service(start_name, StartTask, startTask)
+        r = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if startFlag:
+                break 
+            r.sleep()
+        if startFlag:
+            m = StateMachine(f2, isInterrupting)
+            m.add_state("Start", start, None)
+            m.add_state("move_to_human", move_to_human, None)
+            m.add_state("hold_moving", hold_moving, None)
+            m.add_state("greet", greet, None)
+            m.add_state("hold_greet", hold_greet, None)
+            m.add_state("guide_human", guide_human, None)
+            m.add_state("hold_guide", hold_guide, None)
+            m.add_state("goodbye_human", goodbye_human, None)
+            m.add_state("go_to_dock", go_to_dock, None, facultative = True)
+            m.add_state("final", final, end_state=True)
+            m.set_start("Start")
+            m.run("Python is great")
     #m.run("Python is difficult")
     #m.run("Perl is ugly")
     finally:
