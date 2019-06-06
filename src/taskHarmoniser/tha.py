@@ -1,48 +1,72 @@
+#!/usr/bin/env python
+import signal
+import sys
 from TaskHarmoniser import TaskHarmoniser
 import time
 import threading
+import rospy 
+from multitasker.srv import *
+from multitasker.msg import *
 
 _FINISH = False
+scheduler = threading.Thread
+switcher = threading.Thread
+th = TaskHarmoniser
+def updateSP(data):
+	global th
+	th.updatePriority(data.da_id,data.priority)
+	pass
+def initDA(data):
+	global th
+	print("GOT REQUEST")
+	new_id = th.getNextID()
+	print("ID: ",new_id)
+	th.addDA(new_id)
+	th.updatePriority(new_id, data.task_priority)
+	return TaskRequestResponse(-1)
 
-def initDA(th):
-	i=0
-	while i < 6:
-		th.addDA(i)
-		th.updatePriority(i,i)
-		time.sleep(1)
-		i = i+1
-		print (i)
-def scheduler(th):
+def scheduler():
 	global _FINISH
+	global th
 	while True:
 		th.schedule()
 		time.sleep(1)
 		if _FINISH:
+			th.sendIndicator()
 			break
-def switcher(th):
+def switcher():
+	global th
 	global _FINISH
 	while True:
 		th.switchDA()
 		if _FINISH:
 			break
+def signal_handler(sig, frame):
+	print('You pressed Ctrl+C!')
+	global _FINISH
+	_FINISH = True
+	global scheduler
+	global switcher 
+	scheduler.join()   
+	switcher.join() 
+	sys.exit(0)
 
 if __name__== "__main__":
+	global th
+	rospy.init_node('TH', anonymous=True)
+	print("ready")
+	signal.signal(signal.SIGINT, signal_handler)
 	th = TaskHarmoniser()
-	initiator = threading.Thread(target = initDA, args=[th])
-	initiator.start()
-	scheduler = threading.Thread(target = scheduler,  args=[th])
+	global scheduler
+	global switcher
+	scheduler = threading.Thread(target = scheduler)
 	scheduler.start()
-	switcher = threading.Thread(target = switcher,  args=[th])
+	switcher = threading.Thread(target = switcher)
 	switcher.start()
-	while True:
-		time.sleep(1)
-		if not initiator.is_alive():
-			global _FINISH
-			_FINISH = True
-			break
+	sub_status = rospy.Subscriber("TH/statuses", Status, updateSP)
+	s = rospy.Service("TH/new_task", TaskRequest, initDA)
 
-	initiator.join()   
-	scheduler.join()   
-	switcher.join()   
+	rospy.spin()
+  
 	print("END")
     	

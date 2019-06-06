@@ -10,6 +10,7 @@ project(multitasker)
   add_message_files(FILES
     TaskState.msg
     ScheduleParams.msg
+    Status.msg
   #  MyMessage2.msg
   )
 
