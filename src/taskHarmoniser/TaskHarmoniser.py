@@ -58,7 +58,7 @@ class TaskHarmoniser():
     def schedule(self):
         self.lock.acquire()
         for key_id in self.queue.items():
-            self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].priority + key_id[0]
+            self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].priority
         if len(self.queue) > 0:
             q = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]['priority'], reverse=True))
