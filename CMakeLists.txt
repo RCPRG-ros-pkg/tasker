@@ -9,6 +9,7 @@ project(multitasker)
   # Declare the message files to be built
   add_message_files(FILES
     TaskState.msg
+    ScheduleParams.msg
   #  MyMessage2.msg
   )
 
