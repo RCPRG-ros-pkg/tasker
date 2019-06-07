@@ -5,24 +5,32 @@ from TaskHarmoniser import TaskHarmoniser
 import time
 import threading
 import rospy 
+import rosmsg
 from multitasker.srv import *
 from multitasker.msg import *
+from rospy_message_converter import json_message_converter
 
 _FINISH = False
 scheduler = threading.Thread
 switcher = threading.Thread
 th = TaskHarmoniser
+
 def updateSP(data):
 	global th
-	th.updatePriority(data.da_id,data.priority)
+	th.updateScheduleParams(data.da_id, data.schedule_params)
 	pass
 def initDA(data):
 	global th
 	print("GOT REQUEST")
 	new_id = th.getNextID()
 	print("ID: ",new_id)
-	th.addDA(new_id)
-	th.updatePriority(new_id, data.task_priority)
+	json_str = json_message_converter.convert_ros_message_to_json(data.init_params)
+	print("S: ",json_str)
+	da_name = "DA_"+str(new_id)
+	th.initialiseDA(data.application, new_id, da_name, json_str)
+	# rospy.set_param('/'+da_name+'/init_params', stri)
+	th.addDA(new_id, da_name, data.application)
+	th.updateScheduleParams(new_id, data.init_params)
 	return TaskRequestResponse(-1)
 
 def scheduler():

@@ -78,4 +78,5 @@ endif()
   		bin/txt_hazardDetection
       bin/txt_human_fell
       bin/harmonization_table_generator
+      bin/txt_test
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

@@ -2,26 +2,33 @@ from collections import OrderedDict
 from multitasker.msg import *
 import threading
 import time
-
+import subprocess
+import rospy
 class TaskHarmoniser():
     def __init__(self):
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
-        self.init_da = {'da_id': -1, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
+        self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
-    def addDA(self, added):
+    def initialiseDA(self, application, da_id, da_name, init_params):
+        package = 'multitasker' 
+        executable = application
+        # cmd = "rosrun "+ package + " "+executable+ " "+da_name+ " "+str(da_id)+" "+str(init_params)
+        rospy.set_param('/'+da_name+'/fsm_condition/startTask', False)
+        subprocess.Popen(['rosrun', package, executable, da_name, str(da_id), init_params])
+    def addDA(self, added, da_name, da_type):
         # type: (int) -> None
         self.lock.acquire()
-        da = {'da_id': added, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
+        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.queue[added] = da
         self.lock.release()
-    def updateDA(self, da_id, priority, scheduleParams):
+    def updateDA(self, da_id, da_name, da_type, priority, scheduleParams):
         # type: (int, int, ScheduleParams) -> None
-        da = {'da_id': da_id, 'priority': priority, 'scheduleParams': scheduleParams}
+        da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'priority': priority, 'scheduleParams': scheduleParams}
     def updateDA(self, da):
         # type: (dict) -> None
         self.queue[da["da_id"]] = da
@@ -30,12 +37,14 @@ class TaskHarmoniser():
         self.lock.acquire()
         # print ("q: ", self.queue[da_id],"\n p: ",self.queue[da_id]["priority"], "\n new_q: ",priority)
         self.queue[da_id]["priority"] = float(priority)
-        self.queue[da_id]["scheduleParams"].priority = float(priority)
+        # self.queue[da_id]["scheduleParams"].priority = float(priority)
         # print ("NQ: ", self.queue[da_id])
         self.lock.release()
     def updateScheduleParams(self, da_id, scheduleParams):
         # type: (int, ScheduleParams) -> None
+        self.lock.acquire()
         self.queue[da_id]["scheduleParams"] = scheduleParams
+        self.lock.release()
     def makeInterrupting(self, da_id):
         # type: (int) -> None
         if self.isInterrupting():
@@ -136,6 +145,7 @@ class TaskHarmoniser():
         self.lock.acquire()
         interrupting = self.interruptField
         print("SEND StartTask to initialised: ", interrupting["da_id"])
+        rospy.set_param('/'+self.interruptField["da_name"]+'/fsm_condition/startTask', True)
         self.makeExecuting()
         self.switchIndicator.clear()
         self.lock.release()

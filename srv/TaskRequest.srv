@@ -1,6 +1,5 @@
 string application
 string da_name
-int8 task_priority
-int16 task_deadline
+ScheduleParams init_params
 ---
 int8 status 

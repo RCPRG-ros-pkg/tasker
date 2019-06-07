@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+import json
+from multitasker.msg  import *
+from multitasker.srv  import *
+from rospy_message_converter import json_message_converter
+import sys
+import rospy
+from task_machine.StateMachine import * #StateMachine
+
+
+startFlag = False
+my_priority = 0
+isInterrupting = False
+def startTask(data):
+    global startFlag
+    global isInterrupting
+    isInterrupting = data.isInterrupting
+    startFlag = True
+    return StartTaskResponse()
+
+def getPriority():
+    global my_priority
+    my_priority = my_priority + 1
+    return my_priority
+def getDeadline():
+    my_deadline = -1
+    return my_deadline
+def getTaskDuration():
+    duration = 10
+    return duration
+
+def getLaunchConditions(req):
+    l_conditions = LaunchConditionsResponse()
+    l_conditions.start_deadline = getDeadline()
+    l_conditions.task_duration = getTaskDuration()
+    l_conditions.task_priority = getPriority()
+    return l_conditions
+
+def final(cargo_in):
+    return
+
+def start(cargo_in, event_in, event_out):
+    print("\n"+ "----------"+"\n")
+    print( "START"+"\n")
+    print( "----------"+"\n")
+    print("\t cargo: "+ str( cargo_in)+"\n")
+    print("\t STATE_EVENT: "+ str( event_in.isSet())+"\n")
+    print( ""+"\n")
+    human_name = "JOHN"
+    if event_in.isSet():
+        event_out.set()
+        print( ""+"\n")
+        print( "set HOLD"+"\n")
+        print( ""+"\n")
+        return ("first_hold", "data required to hold")
+    return ("move_to_human", [human_name, None])
+
+def move_to_human(cargo_in, event_in, event_out):
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "move_to_human"+"\n")
+    print("----------"+"\n")
+    print( "\t args [<human_name>, <init_human_pose>]: "+ str( cargo_in)+"\n")
+    print( "\t Get pose of the human "+"\n")
+    i = 0
+    while i < 10:
+        print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
+        print( "\t Checking if the destination is reached"+"\n")
+    # run_blocking(blocking_call, cargo_in, event)
+        if event_in.isSet():
+            event_out.set()
+            print( ""+"\n")
+            print( "set HOLD"+"\n")
+            print( ""+"\n")
+            return ("hold_moving", "stop robot")
+        time.sleep(1)
+        i+=1
+    say = ""
+    if cargo_in[1] == None:
+        say = "Hello, follow me please."
+    else:
+        say = "Hallo again, follow me please"
+    return ("greet", say)
+
+if __name__== "__main__":
+    try:
+        global startFlag
+        global my_priority
+        global isInterrupting
+        da_name = sys.argv[1]
+        sp = ScheduleParams()
+        da_ID = int(sys.argv[2])
+        stri = sys.argv[3]
+        rospy.init_node(da_name, anonymous=False)
+        print("DA: ",stri)
+        sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
+        print ("DA.priority: ", sp.priority)
+        my_priority = sp.priority
+        node_namespace = rospy.get_name() + "/multitasking"
+        cond_name = node_namespace + "/get_launch_conditions"
+        start_name = node_namespace + "/startTask"
+        conditions_srv = rospy.Service(cond_name, LaunchConditions, getLaunchConditions)
+        start_srv = rospy.Service(start_name, StartTask, startTask)
+        r = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if rospy.get_param('~fsm_condition/startTask'):
+                break 
+            r.sleep()
+        if rospy.get_param('~fsm_condition/startTask'):
+            f1=open('./blockin_log', 'w+')
+            f2=open('./state_m_log', 'w+')
+            print("DA: START TASK FSM")
+            m = StateMachine(f2, isInterrupting)
+            m.add_state("Start", start, None)
+            m.add_state("move_to_human", move_to_human, None)
+            m.add_state("final", final, end_state=True)
+            m.set_start("Start")
+            m.run("Python is great")
+    finally:
+        f2.close()
+        f1.close()
+        pass
