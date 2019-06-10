@@ -1,2 +1,3 @@
 bool isInterrupting
+string params
 ---

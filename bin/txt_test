@@ -7,7 +7,6 @@ import sys
 import rospy
 from task_machine.StateMachine import * #StateMachine
 
-
 startFlag = False
 my_priority = 0
 isInterrupting = False
@@ -79,7 +78,18 @@ def move_to_human(cargo_in, event_in, event_out):
         say = "Hello, follow me please."
     else:
         say = "Hallo again, follow me please"
-    return ("greet", say)
+    return ("final", "blah")
+
+def hold_moving(cargo_in):
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print("hold_moving"+"\n")
+    print( "----------"+"\n")
+    print("\t args: "+ str( cargo_in)+"\n")
+    # run_blocking(blocking_call, cargo_in, event)
+    return ("move_to_human", ["human_name",[10,20]])
+
+def final(cargo_in):
+    return
 
 if __name__== "__main__":
     try:
@@ -102,20 +112,19 @@ if __name__== "__main__":
         start_srv = rospy.Service(start_name, StartTask, startTask)
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
-            if rospy.get_param('~fsm_condition/startTask'):
-                break 
+            if startFlag:
+                break
             r.sleep()
-        if rospy.get_param('~fsm_condition/startTask'):
-            f1=open('./blockin_log', 'w+')
-            f2=open('./state_m_log', 'w+')
-            print("DA: START TASK FSM")
-            m = StateMachine(f2, isInterrupting)
-            m.add_state("Start", start, None)
-            m.add_state("move_to_human", move_to_human, None)
-            m.add_state("final", final, end_state=True)
-            m.set_start("Start")
-            m.run("Python is great")
+        start_srv.shutdown()
+        f1=open('./blockin_log', 'w+')
+        f2=open('./state_m_log', 'w+')
+        print("DA: START TASK FSM")
+        m = StateMachine(f2, isInterrupting)
+        m.add_state("Start", start, None)
+        m.add_state("move_to_human", move_to_human, None)
+        m.add_state("hold_moving", hold_moving, None)
+        m.add_state("final", final, end_state=True)
+        m.set_start("Start")
+        m.run("Python is great")
     finally:
-        f2.close()
-        f1.close()
         pass

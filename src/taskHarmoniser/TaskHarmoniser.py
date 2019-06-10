@@ -1,9 +1,13 @@
 from collections import OrderedDict
 from multitasker.msg import *
+from multitasker.srv import *
 import threading
 import time
 import subprocess
 import rospy
+from std_srvs.srv import Trigger, TriggerRequest
+import rosnode
+
 class TaskHarmoniser():
     def __init__(self):
         self.switchIndicator = threading.Event()
@@ -22,7 +26,7 @@ class TaskHarmoniser():
         subprocess.Popen(['rosrun', package, executable, da_name, str(da_id), init_params])
     def addDA(self, added, da_name, da_type):
         # type: (int) -> None
-        self.lock.acquire()
+        self.lock.acquire()        
         da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.queue[added] = da
         self.lock.release()
@@ -118,6 +122,12 @@ class TaskHarmoniser():
                         self.switchIndicator.set()
     def schedule(self):
         self.lock.acquire()
+        if self.isExecuting():
+            exec_da_name = "/"+self.execField["da_name"]
+            print("checking  EXEC node: ", exec_da_name)
+            if not rosnode.rosnode_ping(exec_da_name, 1):
+                print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
+                self.execField = {}
         print (self.queue)
         for key_id in self.queue.items():
             self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].priority
@@ -135,6 +145,9 @@ class TaskHarmoniser():
         if self.isExecuting():
             commanding = self.execField
             self.lock.release()
+            hold_srv = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/hold_now', Trigger)
+            trig = TriggerRequest()
+            resp = hold_srv(trig)
             print("SEND SUSPEND to commanding: ", commanding["da_id"])
             i = 0
             while i < 1:
@@ -144,8 +157,15 @@ class TaskHarmoniser():
             self.lock.release()
         self.lock.acquire()
         interrupting = self.interruptField
-        print("SEND StartTask to initialised: ", interrupting["da_id"])
-        rospy.set_param('/'+self.interruptField["da_name"]+'/fsm_condition/startTask', True)
+        self.lock.release()
+        print("SEND StartTask to initialised: ", interrupting["da_name"])
+        srv_name = "/"+interrupting["da_name"]+"/multitasking/startTask"
+        print (srv_name)
+        rospy.wait_for_service(srv_name)
+        start_srv = rospy.ServiceProxy(srv_name, StartTask)
+        start_srv(False, "")
+        rospy.wait_for_service('/'+interrupting["da_name"]+'/multitasking/get_hold_conditions')
+        self.lock.acquire()
         self.makeExecuting()
         self.switchIndicator.clear()
         self.lock.release()

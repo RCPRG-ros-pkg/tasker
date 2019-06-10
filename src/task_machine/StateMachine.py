@@ -157,9 +157,9 @@ class StateMachine:
     def onResume(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
         self.task_state = 5 # Resuming
-        self.onResumeData = param
+        self.onResumeData = param.params
         time.sleep(0.1)  
-        return TriggerResponse()
+        return StartTaskResponse()
         # self.current_state_m_thread.join()
     def getHoldConditions(self, param):
         #raise SigHold()
@@ -212,7 +212,7 @@ class StateMachine:
         print "cargo: ", cargo_in
         my_state = TaskState()
         my_state.node_name = rospy.get_name()
-        my_state.status = 0
+        my_state.status = 1
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "END STATES: ", self.endStates+"\n")
         try:
             while True:
@@ -220,7 +220,6 @@ class StateMachine:
                 my_state.state_name = str(self.current_state) 
                 my_state.state_input = str(cargo_in) 
                 self.pub_state.publish( my_state)
-                # print "2"
 
                 # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "ev1: ", event.isSet()+"\n")
                 self.print_log.write("\n"+"\n"+str(datetime.datetime.now().time())+"\n"+ "RUNNING STATE: "+ str(self.current_state.upper())+"\n")
@@ -267,6 +266,9 @@ class StateMachine:
                         self.print_log.write("Setting state event\n")
                         # set state hold event
                         state_stop_event.set()
+                        # update data in current_state topic
+                        my_state.status = 2
+                        self.pub_state.publish(my_state)
                         # wait for state to finish
                         while thread.is_alive():
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM waits for current state to terminate"+"\n")
@@ -289,7 +291,7 @@ class StateMachine:
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
                             FSM_holded = True 
                             # update data in current_state topic
-                            my_state.status = 1
+                            my_state.status = 3
                             self.pub_state.publish(my_state)
                             break   
                         # if the FSM event was set, the state was finished, but the state didn't 
@@ -321,7 +323,7 @@ class StateMachine:
                 if ((self.current_state.upper() in self.endStates) or (self.isInterrupting == 1 and self.current_state.upper() in self.facultativeStates)):
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM reached end state: "+ str(self.current_state)+"\n")
                     self.task_state = 6
-                    my_state.status = 2
+                    my_state.status = 5
                     self.pub_state.publish(my_state)
                     break
         finally:
@@ -355,8 +357,8 @@ class StateMachine:
                 if self.task_state == 4:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Waiting for resume"+"\n")
                     if self.res_srv == None:
-                        resume_srv_name = node_namespace+"/resume_now"
-                        self.res_srv = rospy.Service(resume_srv_name, Trigger, self.onResume)
+                        resume_srv_name = node_namespace+"/startTask"
+                        self.res_srv = rospy.Service(resume_srv_name, StartTask, self.onResume)
                         self.suspend_srv.shutdown()
                 if self.task_state == 5:
                     self.res_srv.shutdown()
@@ -366,6 +368,12 @@ class StateMachine:
                     cargo = [self.resumeData, self.onResumeData]
                     print cargo
                     print self.current_state
+                    my_state = TaskState()
+                    my_state.state_name = str(self.current_state) 
+                    my_state.state_input = str(cargo) 
+                    my_state.node_name = rospy.get_name()
+                    my_state.status = 4
+                    self.pub_state.publish( my_state)
                     self.fsm_stop_event.clear()
                     self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
                     self.current_state_m_thread.start()
