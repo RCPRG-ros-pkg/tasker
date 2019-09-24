@@ -1,0 +1,804 @@
+#!/usr/bin/env python2
+
+from task_machine.StateMachine import * #StateMachine
+from multitasker.srv import LaunchConditions,StartTask
+from multitasker.msg  import *
+from multitasker.srv  import *
+from rospy_message_converter import json_message_converter
+import json
+
+import rospy
+import time 
+import datetime
+import sys
+
+# ------------------------------------------------------------------
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+import tf
+import math
+import geometry_msgs.msg
+import actionlib
+# ------------------------------------------------------------------
+from tiago_utils import * # global constants
+from tiago_utils import move_base_set_goal
+from tiago_utils import move_base_cancel_goals
+from tiago_utils import wait_for_tiago_init
+from tiago_utils import action_status_callback
+# ------------------------------------------------------------------
+
+global listener
+global human_id
+global return_msg
+return_msg = []
+startFlag = False
+my_priority = 0
+isInterrupting = False
+
+my_priority = 0 
+my_deadline = -1
+isInterrupting = False
+
+dock_pose = [3.70, 1.90, 0.0, 0.0, 0.0, 0.0] # next to entrance | y ~ PI - back to door 
+
+# 'standing' script poses
+# ===================
+# ======= V1 ========
+# ===================
+'''
+header: 
+  seq: 0
+  stamp: 
+    secs: 105
+    nsecs: 373000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: 0.449645936489
+    y: 0.0792762041092
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.97049860128
+    w: -0.241106750038
+
+human_pose = [0.45, 0.08, 0.0, 0.0, 0.0, -152.5]
+'''
+# ===================
+# ======= V2 ========
+# ===================
+'''
+header: 
+  seq: 0
+  stamp: 
+    secs: 22
+    nsecs: 330000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: -0.1344743222
+    y: -0.201279640198
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.999291688955
+    w: -0.0376313750156
+'''
+#human_pose = [-0.13, 0.20, 0.00, 0.0, 0.0, 35.68]
+# ===================
+
+'''
+  position: 
+    x: 3.18645572662
+    y: 5.37823104858
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.58703750871
+    w: 0.80955973428
+'''
+#human_dest = [3.18, 5.37, 0.0, 0.0, 0.0, 71.89]
+
+# human_dest = [2.92, 5.24, 0.0, 0.0, 0.0, 120.0]
+
+# ===================
+
+# ------------------------------------------------------------------
+
+# Ver2
+human_poses = []
+human_dests = []
+human_last_poses = []
+
+# * * * * * * * * * * * * * * ACTOR1 * * * * * * * * * * * * * * * *
+
+# start
+'''
+header: 
+  seq: 8
+  stamp: 
+    secs: 243
+    nsecs: 853000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: -0.48579788208
+    y: 0.14269067347
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.953078234364
+    w: -0.302724097457
+'''
+
+#human_pose = [-0.4857, +0.0000, +0.0000, +0.0000, +0.0000, -144.7597]
+#human_poses.append(human_pose)
+
+'''
+header: 
+  seq: 1
+  stamp: 
+    secs: 374
+    nsecs: 800000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: -0.320914298296
+    y: -0.100545883179
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.986417840476
+    w: -0.164255423015
+'''
+#human_pose = [-0.3209, -0.1005, +0.0000, +0.0000, +0.0000, -161.0926]
+
+human_pose = [-0.4857, +0.1426, +0.0000, +0.0000, +0.0000, -161.0926]
+human_poses.append(human_pose)
+
+
+# dest 
+'''
+header: 
+  seq: 9
+  stamp: 
+    secs: 292
+    nsecs: 174000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: 3.12596273422
+    y: 5.67313241959
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.999757517577
+    w: 0.0220205823641
+'''
+#human_dest = [+3.1259, +5.6731, +0.0000, 0.0000, 0.0000, +177.4764]
+#human_dests.append(human_dest)
+
+'''
+header: 
+  seq: 2
+  stamp: 
+    secs: 589
+    nsecs: 850000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: 3.41345524788
+    y: 5.586145401
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.985469480681
+    w: 0.169852590933
+'''
+
+human_dest = [+3.4134, +5.5861, +0.0000, 0.0000, 0.0000, +160.4415]
+human_dests.append(human_dest)
+
+# * * * * * * * * * * * * * * ACTOR2 * * * * * * * * * * * * * * * *
+# start
+
+'''
+header: 
+  seq: 12
+  stamp: 
+    secs: 395
+    nsecs: 123000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: 3.31662845612
+    y: 1.70269775391
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.805676184728
+    w: 0.592356214927
+
+'''
+#human_pose = [+3.3166, +1.7026, +0.0000, +0.0000, +0.0000, -107.3513]
+#human_poses.append(human_pose)
+
+'''
+header: 
+  seq: 3
+  stamp: 
+    secs: 677
+    nsecs: 972000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: 3.22058129311
+    y: 1.03116691113
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.776372649676
+    w: 0.63027415371
+
+'''
+
+#human_pose = [+3.2205, +1.0311, +0.0000, +0.0000, +0.0000, -101.8592]
+human_pose = [+3.3166, +1.7026, +0.0000, +0.0000, +0.0000, -101.8592]
+human_poses.append(human_pose)
+
+# dest
+
+'''
+header: 
+  seq: 11
+  stamp: 
+    secs: 375
+    nsecs: 113000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: -0.552233695984
+    y: -0.276034355164
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.0662988753729
+    w: 0.997799809142
+'''
+#human_dest = [-0.5522, -0.2760, +0.0000, 0.0000, 0.0000, -7.6019]
+#human_dests.append(human_dest)
+
+'''
+header: 
+  seq: 4
+  stamp: 
+    secs: 734
+    nsecs: 804000000
+  frame_id: "map"
+pose: 
+  position: 
+    x: -0.474497079849
+    y: -0.41937148571
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.00422636600859
+    w: 0.999991068875
+'''
+
+human_dest = [-0.4744, -0.4193, +0.0000, 0.0000, 0.0000, +0.4842]
+human_dests.append(human_dest)
+
+# ------------------------------------------------------------------
+
+human_last_poses = human_poses # in fact - robot's last poses while guiding each human
+
+# ------------------------------------------------------------------
+
+human_name = ""
+room_number = ""
+
+# ======================================================================================
+
+def blocking_call(queue):
+
+    try:
+        args = queue.get()
+        i =0
+        print(str(datetime.datetime.now().time())+"\n"+ args+"\n")
+        x = args[0]
+        y = args[1]
+        z = args[2]
+        print(str(datetime.datetime.now().time())+"\n"+ "Z: ", z+"\n")
+        while i < 100:
+            x+=1
+            y+=1
+            z+=1
+            time.sleep(1)
+            i+=1
+        print(str(datetime.datetime.now().time())+"\n"+ "computed: "+ str([x, y, z])+"\n")
+        queue.put([x,y,z])
+    finally:
+        print(str(datetime.datetime.now().time())+"\n"+ "EXCEPTTTTTTTTTTTTTTTTTTTTT"+"\n")
+    return
+
+# ======================================================================================
+
+def start(cargo_in, event_in, event_out):
+
+    print("\n"+ "----------"+"\n")
+    print( "START"+"\n")
+    print( "----------"+"\n")
+    print("\t cargo: "+ str( cargo_in)+"\n")
+    print("\t STATE_EVENT: "+ str( event_in.isSet())+"\n")
+    print( ""+"\n")
+
+    global human_id
+
+    if event_in.isSet():
+        event_out.set()
+        print( ""+"\n")
+        print( "set HOLD"+"\n")
+        print( ""+"\n")
+        return ("first_hold", "data required to hold")
+
+    return ("move_to_human", [human_name, None])
+
+# ======================================================================================
+
+def move_to_human(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "move_to_human"+"\n")
+    print("----------"+"\n")
+    print( "\t args [<human_name>, <init_human_pose>]: "+ str( cargo_in)+"\n")
+    print( "\t Get pose of the human "+"\n")
+    
+    i = 0
+
+    global human_poses
+    global human_id
+
+    if ( cargo_in[1] != None ):
+
+        # not the first try
+        print ( "\t NOT_1st \t human_id: " + str(human_id) + "\t cargo_in[0]: " + str(cargo_in[0]) + "\n \t \t \t \t \t cargo_in[0][1]: " + str(cargo_in[0][1]) + "\n \t \t \t \t \t cargo_in[1]: " + str(cargo_in[1]) + "\n" )
+        #client = move_base_set_goal(cargo_in[0][1])
+
+    else:
+
+        # first try
+        print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
+        #client = move_base_set_goal( human_poses[human_id] )
+
+
+    while ( i<3 ):
+        
+        print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
+        print( "\t Checking if the destination is reached"+"\n")
+        #print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
+
+        # run_blocking(blocking_call, cargo_in, event)
+        
+        if event_in.isSet():
+            event_out.set()
+            print( ""+"\n")
+            print( "set HOLD"+"\n")
+            print( ""+"\n")
+            return ("suspending", "move_to_human")
+        
+        time.sleep(1)
+        i+=1
+
+    say = ""
+    if cargo_in[1] == None:
+        say = "Hello, follow me please."
+    else:
+        say = "Hello again, follow me please"
+
+    return ("greet", say)
+
+# ======================================================================================
+
+def hold_moving(cargo_in):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print("hold_moving"+"\n")
+    print( "----------"+"\n")
+    print("\t args: "+ str( cargo_in)+"\n")
+
+    # move_base_cancel_goals()
+
+    global human_name
+    global room_number
+
+    # run_blocking(blocking_call, cargo_in, event)
+    #return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    return_msg = []
+    return_msg.append(human_name)
+    return_msg.append(human_last_poses[human_id])
+    
+    return ("move_to_human", return_msg )
+
+# ======================================================================================
+
+def greet(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "greet"+"\n")
+    print("----------"+"\n")
+    i=0
+    print( "\t SAY_METHOD("+ str( cargo_in)+")\n")
+
+    while i < 5:
+
+        print( "\t Checking if the speech is over"+"\n")
+        # run_blocking(blocking_call, cargo_in, event)
+        if event_in.isSet():
+            event_out.set()
+            print( ""+"\n")
+            print( "set HOLD"+"\n")
+            print( ""+"\n")
+            return ("suspending", "greet")
+        i+=1
+        time.sleep(1)
+
+    return ("guide_human", room_number)
+
+# ======================================================================================
+
+def hold_greet(cargo_in):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "SAY"+"\n")
+    print("----------"+"\n")
+    print( "\t SAY_METHOD("+ str( cargo_in)+")\n")
+
+    #return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    return_msg = []
+    return_msg.append(human_name)
+    return_msg.append(human_last_poses[human_id])
+    
+    return ("move_to_human", return_msg )
+
+# ======================================================================================
+
+def guide_human(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "guide_human"+"\n")
+    print("----------"+"\n")
+    print( "\t args <destination>: "+ str( cargo_in)+"\n")
+    i = 0
+
+    global human_dests
+    global human_last_poses
+    global human_id
+
+    #client = move_base_set_goal(human_dests[human_id])
+
+    while ( i<3 ):
+
+    #    print( "\t Moving to the destination: "+ str( cargo_in)+"\n")
+    #    print( "\t Checking if the human is following me"+"\n") # not checking really
+    #    print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
+
+        #if ( client.get_state() == ACTION_STATUS_ABORTED ):
+        #    print( "\t       o  move base STATE: ABORTED, a valid plan could not be found \n")
+        #    break
+
+        # save the last robot pose in case of guide interrupt
+        #(trans,rot) = listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+        #(roll, pitch, yaw) = euler_from_quaternion( [rot[0], rot[1], rot[2], rot[3]] )
+        #roll  *= (180.0 / math.pi)
+        #pitch *= (180.0 / math.pi)
+        #yaw   *= (180.0 / math.pi)
+        #human_last_pose_temp = [trans[0], trans[1], trans[2], roll, pitch, yaw]
+        #print ( "\t human_last_pose: " + str(human_last_pose_temp) )
+        #human_last_poses[human_id] = human_last_pose_temp
+
+        if event_in.isSet():
+            event_out.set()
+            print( ""+"\n")
+            print( "set HOLD"+"\n")
+            print( ""+"\n")
+            return ("suspending", "guide_human")
+
+        i+=1
+        time.sleep(1)
+
+    return ("goodbye_human", None)
+
+# ======================================================================================
+
+def hold_guide(cargo_in):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print("hold_guide"+"\n")
+
+    move_base_cancel_goals()
+    global human_last_poses
+    global human_id
+
+    print( "----------"+"\n")
+    print("\t args: "+ str( cargo_in)+"\n")
+    print( "\t Approaching human "+"\n")
+    print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
+    print( "\t Go aside "+"\n")
+
+    #return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    return_msg = []
+    return_msg.append(human_name)
+    return_msg.append(human_last_poses[human_id])
+    
+    return ("move_to_human", return_msg )
+
+# ======================================================================================
+
+def goodbye_human(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "goodbye_human"+"\n")
+    print("----------"+"\n")
+    print( "\t args <destination>: "+ str( cargo_in)+"\n")
+    print( "\t SAY_METHOD("+ "Here is the room "+room_number+"\n")
+    i = 0
+
+    while i < 5:
+        print( "\t Checking if the speech is over"+"\n")
+        print( "\t HOLD IS UNAVAILABLE"+"\n")
+
+        i+=1
+        time.sleep(1)
+
+    print( "\t WILL GO_TO_DOCK" + "\n")
+
+    return ("go_to_dock", None)
+
+# ======================================================================================
+
+def go_to_dock(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "go_to_dock"+"\n")
+    print("----------"+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
+    i = 0
+
+    global dock_pose
+    #client = move_base_set_goal(dock_pose)
+
+    #while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
+
+    #    print( "\t Moving to my dock"+")\n")
+    #    print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
+
+    #    if event_in.isSet():
+    #        event_out.set()
+    #        print( ""+"\n")
+    #        print( "set HOLD"+"\n")
+    #        print( ""+"\n")
+    #        return ("final", None)
+    #    i+=1
+    #    time.sleep(1)
+
+    return ("final", None) 
+
+# ======================================================================================
+
+def suspending(cargo_in):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "suspending"+"\n")
+    print("----------"+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
+    i = 0
+    # -------
+    # getSuspend
+    # -------
+
+    global return_msg
+    global human_name
+    global room_number
+    global human_last_poses
+    global human_id
+    if cargo_in == 'move_to_human':
+    	print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    	print("hold_moving"+"\n")
+    	print( "----------"+"\n")
+    	print("\t args: "+ str( cargo_in)+"\n")
+
+    	#move_base_cancel_goals()
+
+
+    	# run_blocking(blocking_call, cargo_in, event)
+    	#return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    	return_msg = []
+    	return_msg.append(human_name)
+    	return_msg.append(human_last_poses[human_id])
+
+    elif cargo_in == 'greet':
+    	print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    	print( "SAY"+"\n")
+    	print("----------"+"\n")
+    	print( "\t SAY_METHOD(Oh! I'm sorry but I got very important request. Please wait, I'll come back)\n")
+
+    	#return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    	return_msg = []
+    	return_msg.append(human_name)
+    	return_msg.append(human_last_poses[human_id])
+
+    elif cargo_in == 'guide_human':
+        print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    	print("hold_guide"+"\n")
+
+    	#move_base_cancel_goals()
+
+    	print( "----------"+"\n")
+    	print("\t args: "+ str( cargo_in)+"\n")
+    	print( "\t Approaching human "+"\n")
+    	print( "\t SAY_METHOD("+ "Oh! I'm sorry but I got a very important request. Please wait, I'll come back"+")\n")
+    	print( "\t Go aside "+"\n")
+
+    	#return ("move_to_human", [human_name, human_last_poses[human_id]])
+
+    	return_msg = []
+    	return_msg.append(human_name)
+    	return_msg.append(human_last_poses[human_id])
+    else:
+        print "NO SUSPEND STRATEGY FOR THE STATE!!!!!!!"
+	return ("final", cargo_in)
+    # -------
+    # execSuspend
+    # -------
+    #if os.system(value):
+    #    raise RuntimeError('execSuspend program: <{}> FAILED!'.format(value))
+    return ("update_task", cargo_in) 
+
+# ======================================================================================
+
+def update_task(cargo_in, event_in, event_out):
+
+    print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
+    print( "update_task"+"\n")
+    print("----------"+"\n")
+    print( "\t args: "+ str( cargo_in)+"\n")
+    print("----------"+"\n")
+    print( "\t interupted state : "+ str( cargo_in[0])+"\n")
+    i = 0
+    global return_msg
+    if cargo_in[0] == 'move_to_human':
+    	return ("move_to_human", return_msg )
+
+    if cargo_in[0] == 'greet':
+    	return ("move_to_human", return_msg )
+
+    if cargo_in[0] == 'guide_human':
+    	return ("move_to_human", return_msg )
+
+
+
+# ======================================================================================
+
+def final(cargo_in):
+    move_base_cancel_goals()
+    return
+def startTask(data):
+    global startFlag
+    global isInterrupting
+    isInterrupting = data.isInterrupting
+    startFlag = True
+    return StartTaskResponse()
+
+def getPriority():
+    global my_priority
+    return my_priority
+def getDeadline():
+    global my_deadline
+    return my_deadline
+
+def getLaunchConditions(req):
+    l_conditions = LaunchConditionsResponse()
+    l_conditions.start_deadline = getDeadline()
+    l_conditions.task_priority = getPriority()
+    return l_conditions
+
+# ======================================================================================
+
+if __name__== "__main__":
+
+    try:
+        global startFlag
+        global my_priority
+        global my_deadline
+        global human_pose
+        # global human_last_poses
+        global human_id
+        da_name = sys.argv[1]
+        sp = ScheduleParams()
+        da_ID = int(sys.argv[2])
+        stri = sys.argv[3]
+        rospy.init_node(da_name, anonymous=False)
+        print "DA: ",stri
+        sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
+        print "\n\n\nDA.priority: ", sp.priority
+        my_priority = sp.priority
+	my_deadline = sp.deadline
+	print ("my_deadline = ", sp.deadline) 
+	print ("version = ", sp.version) 
+        if sp.version == "guideHuman-0":
+
+            human_name = "John"
+            room_number = "10"
+            human_id = 0
+
+        elif sp.version == "guideHuman-1":
+
+            human_name = "Mark"
+            room_number = "15"
+            human_id = 1
+
+        else:
+
+            print('\t WRONG da_name...')
+            time.sleep(30)
+
+        f1=open('./blockin_log', 'w+')
+        f2=open('./state_m_log', 'w+')
+        rospy.init_node(da_name, anonymous=False)
+
+        node_namespace = rospy.get_name() + "/multitasking"
+        cond_name = node_namespace + "/get_launch_conditions"
+        start_name = node_namespace + "/startTask"
+        conditions_srv = rospy.Service(cond_name, LaunchConditions, getLaunchConditions)
+        start_srv = rospy.Service(start_name, StartTask, startTask)
+        r = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if startFlag:
+                break 
+            r.sleep()
+        start_srv.shutdown()
+            
+        listener = tf.TransformListener()
+        wait_for_tiago_init()
+
+        m = StateMachine(f2, isInterrupting)
+        m.add_state("Start", start, None)
+        m.add_state("suspending", suspending, None)
+        m.add_state("update_task", update_task, None)
+        m.add_state("move_to_human", move_to_human, None)
+        m.add_state("hold_moving", hold_moving, None)
+        m.add_state("greet", greet, None)
+        m.add_state("hold_greet", hold_greet, None)
+        m.add_state("guide_human", guide_human, None)
+        m.add_state("hold_guide", hold_guide, None)
+        m.add_state("goodbye_human", goodbye_human, None)
+        m.add_state("go_to_dock", go_to_dock, None, facultative = True)
+        #m.add_state("go_to_dock", go_to_dock, None) # for testing
+        m.add_state("final", final, end_state=True)
+        m.set_start("Start")
+        m.run("Python is great")
+        #m.run("Python is difficult")
+        #m.run("Perl is ugly")
+
+    finally:
+        f1.close()
+        f2.close()
+
+# ======================================================================================        
+
