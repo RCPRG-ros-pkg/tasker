@@ -397,16 +397,16 @@ def move_to_human(cargo_in, event_in, event_out):
 
         # not the first try
         print ( "\t NOT_1st \t human_id: " + str(human_id) + "\t cargo_in[0]: " + str(cargo_in[0]) + "\n \t \t \t \t \t cargo_in[0][1]: " + str(cargo_in[0][1]) + "\n \t \t \t \t \t cargo_in[1]: " + str(cargo_in[1]) + "\n" )
-        client = move_base_set_goal(cargo_in[1])
+#        client = move_base_set_goal(cargo_in[1])
 
     else:
 
         # first try
         print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
-        client = move_base_set_goal( human_poses[human_id] )
+#        client = move_base_set_goal( human_poses[human_id] )
 
-
-    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
+     for i in range(4):
+ #   while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
         
         print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
         print( "\t Checking if the destination is reached"+"\n")
@@ -512,19 +512,19 @@ def guide_human(cargo_in, event_in, event_out):
     global human_id
     global human_posture
 
-    client = move_base_set_goal(human_dests[human_id])
+#    client = move_base_set_goal(human_dests[human_id])
     human_posture = "walk"
-
-    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
+    for i in range(2):
+#    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
 
 
         print( "\t Moving to the destination: "+ str( cargo_in)+"\n")
         print( "\t Checking if the human is following me"+"\n") # not checking really
         print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
 
-        if ( client.get_state() == ACTION_STATUS_ABORTED ):
-           print( "\t       o  move base STATE: ABORTED, a valid plan could not be found \n")
-           break
+        #if ( client.get_state() == ACTION_STATUS_ABORTED ):
+         #  print( "\t       o  move base STATE: ABORTED, a valid plan could not be found \n")
+          # break
 
         # save the last robot pose in case of guide interrupt
         (trans,rot) = listener.lookupTransform('/map', '/base_link', rospy.Time(0))
@@ -606,12 +606,12 @@ def go_to_dock(cargo_in, event_in, event_out):
     i = 0
 
     global dock_pose
-    client = move_base_set_goal(dock_pose)
-
-    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
+#    client = move_base_set_goal(dock_pose)
+    for i in range(2):
+#    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
 
        print( "\t Moving to my dock"+")\n")
-       print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
+       #print( "\t       o  move base STATE: " + str(client.get_state()) +"\n")
 
        if event_in.isSet():
            event_out.set()
@@ -650,7 +650,7 @@ def suspending(cargo_in):
         print( "----------"+"\n")
         print("\t args: "+ str( cargo_in)+"\n")
 
-        move_base_cancel_goals()
+        #move_base_cancel_goals()
 
 
         # run_blocking(blocking_call, cargo_in, event)
@@ -675,7 +675,7 @@ def suspending(cargo_in):
         print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
         print("hold_guide"+"\n")
 
-        move_base_cancel_goals()
+        #move_base_cancel_goals()
 
         print( "----------"+"\n")
         print("\t args: "+ str( cargo_in)+"\n")
