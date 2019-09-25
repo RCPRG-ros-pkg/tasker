@@ -1,4 +1,5 @@
 string application
+string version
 string da_name
 ScheduleParams init_params
 ---

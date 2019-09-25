@@ -17,8 +17,12 @@ th = TaskHarmoniser
 
 def updateSP(data):
 	global th
+	print("\nUPDATE SP\n")
+	print "updateSP: ",data.da_id, "SP: ", data.schedule_params
 	th.updateScheduleParams(data.da_id, data.schedule_params)
-	pass
+
+	print("\nUPDATED SP\n")
+	
 def initDA(data):
 	global th
 	print("GOT REQUEST")
@@ -27,7 +31,7 @@ def initDA(data):
 	json_str = json_message_converter.convert_ros_message_to_json(data.init_params)
 	print("S: ",json_str)
 	da_name = "DA_"+str(new_id)
-	th.initialiseDA(data.application, new_id, da_name, json_str)
+	th.initialiseDA(data.application, data.version, new_id, da_name, json_str)
 	# rospy.set_param('/'+da_name+'/init_params', stri)
 	th.addDA(new_id, da_name, data.application)
 	th.updateScheduleParams(new_id, data.init_params)

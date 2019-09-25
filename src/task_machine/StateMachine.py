@@ -107,8 +107,13 @@ def run_blocking(handler, arguments = None, state_event = None):
     return ret
 
 class StateMachine:
-    def __init__(self, file, isInterrupting):
+    def __init__(self, file, isInterrupting, da_ID, ptf_update_task, ptf_update_sp):
+        self.startFlag = False
+        self.isInterrupting = False
+        self.da_ID = da_ID
         self.isInterrupting = isInterrupting
+        self.ptf_update_task = ptf_update_task
+        self.ptf_update_sp = ptf_update_sp
         self.print_log = file
         self.handlers = {}
         self.startState = None
@@ -131,9 +136,24 @@ class StateMachine:
         self.resumeState = None
         self.resumeData = None
         self.pub_state = rospy.Publisher('current_state', TaskState, queue_size=10)
+        self.pub_status = rospy.Publisher('TH/statuses', Status, queue_size=10)
         self.time_to_hold = -1 
         self.time_to_finish = -1
         self.onResumeData = None
+    
+    def updateTask(self, TH_data):
+
+        print "UPDATEING TASK - 2"
+        return self.ptf_update_task(self, TH_data)
+
+    def updateStatus(self):
+        print "UPDATEING STATUS"
+        my_status = Status()
+        my_status.da_id = self.da_ID
+        my_status.schedule_params = self.ptf_update_sp()
+        print "UPDATEING STATUS - 2"
+        self.pub_status.publish(my_status) 
+        print "UPDATEING STATUS - 3"      
 
     def onHold(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
@@ -332,8 +352,36 @@ class StateMachine:
             while thread.is_alive():
                 thread.join()
 
+    def startTask(self, data):
+        self.isInterrupting = data.isInterrupting
+        self.startFlag = True
+        return StartTaskResponse()
+
+    def getLaunchConditions(self, req):
+        l_conditions = LaunchConditionsResponse()
+        l_conditions.start_deadline = 0
+        l_conditions.task_priority = 0
+        return l_conditions
     def run(self, cargo):
         try:
+            node_namespace = rospy.get_name() + "/multitasking"
+            cond_name = node_namespace + "/get_launch_conditions"
+            start_name = node_namespace + "/startTask"
+            conditions_srv = rospy.Service(cond_name, LaunchConditions, self.getLaunchConditions)
+            start_srv = rospy.Service(start_name, StartTask, self.startTask)
+            print "HAVE SERVICES"
+            r = rospy.Rate(5)
+            while not rospy.is_shutdown():
+                self.updateStatus()
+                print "Check START"
+                if self.startFlag:
+                    print "HAVE START"
+                    break 
+                r.sleep()
+            print "HAVE BRAKED"
+            start_srv.shutdown()
+            print "HAVE SHUTDOWN"
+
             self.res_srv = None
             self.suspend_srv = None
             node_namespace = rospy.get_name() + "/multitasking"
@@ -364,10 +412,14 @@ class StateMachine:
                     self.res_srv.shutdown()
                     self.res_srv = None
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "Resuming fsm"+"\n")
-                    self.current_state = self.resumeState
-                    cargo = [self.resumeData, self.onResumeData]
+                    #
+                    
+                    #
+                    print "UPDATEING TASK"
+                    (self.current_state, cargo) = self.updateTask(TH_data = self.onResumeData)
+                    # self.current_state = self.resumeState
                     print cargo
-                    print self.current_state
+                    print "CS: ",self.current_state
                     my_state = TaskState()
                     my_state.state_name = str(self.current_state) 
                     my_state.state_input = str(cargo) 
@@ -387,8 +439,9 @@ class StateMachine:
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
                     break
-                time.sleep(1)
+                time.sleep(10)
                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "test"+"\n")
+                self.updateStatus()
         finally:
                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FINAL"+"\n")
                 self.fsm_stop_event.set()
