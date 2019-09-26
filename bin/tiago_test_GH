@@ -405,7 +405,7 @@ def move_to_human(cargo_in, event_in, event_out):
         print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
 #        client = move_base_set_goal( human_poses[human_id] )
 
-     for i in range(4):
+    for i in range(4):
  #   while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
         
         print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
@@ -729,9 +729,12 @@ def getCost():
     global factor_walk
     global factor_stand
     global factor_sit
+    print "create srv"
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
+    print "call wait"
     listener.waitForTransform('/map', '/base_link', rospy.Time(), rospy.Duration(4.0))
+    print "call listener"
     (trans,rot) = listener.lookupTransform('/map', '/base_link', rospy.Time())
     path_distance = 0
     req_path.start.header.frame_id = "map"
@@ -750,14 +753,15 @@ def getCost():
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
     req_path.goal.pose.orientation.w = 0
-    resp = path_client(req_path)
-    # print "PATH LENGTH: ",len(resp.plan.poses)
-    path_distance_approach = 0
-    if len(resp.plan.poses) > 2:
-        for i in range(len(resp.plan.poses)-1):
-            # print "POSE: ",resp.plan.poses[i]
-            path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
-    
+    print "call plan"
+    # resp = path_client(req_path)
+    # # print "PATH LENGTH: ",len(resp.plan.poses)
+    # path_distance_approach = 0
+    # if len(resp.plan.poses) > 2:
+    #     for i in range(len(resp.plan.poses)-1):
+    #         # print "POSE: ",resp.plan.poses[i]
+    #         path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    path_distance_approach = 5
     req_path.start.header.frame_id = "map"
     req_path.start.pose.position.x = human_last_poses[human_id][0]
     req_path.start.pose.position.y = human_last_poses[human_id][1]
@@ -774,13 +778,15 @@ def getCost():
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
     req_path.goal.pose.orientation.w = 0
-    resp = path_client(req_path)
-    # print "PATH LENGTH: ",len(resp.plan.poses)
-    path_distance_guide = 0
-    if len(resp.plan.poses) > 2:
-        for i in range(len(resp.plan.poses)-1):
-            # print "POSE: ",resp.plan.poses[i]
-            path_distance_guide += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    print "call plan-2"
+    # resp = path_client(req_path)
+    # # print "PATH LENGTH: ",len(resp.plan.poses)
+    # path_distance_guide = 0
+    # if len(resp.plan.poses) > 2:
+    #     for i in range(len(resp.plan.poses)-1):
+    #         # print "POSE: ",resp.plan.poses[i]
+    #         path_distance_guide += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    path_distance_guide = 2
     if human_posture == "walk":
         cost = path_distance_guide * factor_walk[human_id]
     if human_posture == "stand":
