@@ -152,6 +152,9 @@ class TaskHarmoniser():
             if not rosnode.rosnode_ping(exec_da_name, 1):
                 print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
                 self.execField = {}
+            self.execField["priority"] = self.execField["scheduleParams"].priority
+        if self.isInterrupting():
+            self.interruptField["priority"] = self.interruptField["scheduleParams"].priority
         print (self.queue)
         for key_id in self.queue.items():
             self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].priority

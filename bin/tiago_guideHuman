@@ -731,8 +731,19 @@ def getCost():
     global factor_sit
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
-    listener.waitForTransform('/map', '/base_link', rospy.Time(), rospy.Duration(4.0))
-    (trans,rot) = listener.lookupTransform('/map', '/base_link', rospy.Time())
+    ros_time = rospy.Time()
+    trans = []
+    rate = rospy.Rate(5.0)
+    while not rospy.is_shutdown():
+        try:
+            listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
+            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
+            if len(trans) != 0:
+                break
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rate.sleep()
+            continue
+
     path_distance = 0
     req_path.start.header.frame_id = "map"
     req_path.start.pose.position.x = trans[0]
@@ -863,12 +874,14 @@ if __name__== "__main__":
 
             print('\t WRONG da_name...')
             time.sleep(30)
-
-        f1=open('./blockin_log', 'w+')
-        f2=open('./state_m_log', 'w+')
+        f_name_1 = "./blockin_log"+version
+        f_name_2 = "./state_m_log"+version
+        f1=open(f_name_1, 'w+')
+        f2=open(f_name_2, 'w+')
         rospy.init_node(da_name, anonymous=False)
             
         listener = tf.TransformListener()
+        rospy.sleep(2)
         # wait_for_tiago_init()
 
         m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp)

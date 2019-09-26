@@ -149,11 +149,12 @@ class StateMachine:
     def updateStatus(self):
         print "UPDATEING STATUS"
         my_status = Status()
+        self.print_log.write("UPDATEING STATUS id: "+str(self.da_ID)+"\n")
         my_status.da_id = self.da_ID
         my_status.schedule_params = self.ptf_update_sp()
-        print "UPDATEING STATUS - 2"
+        self.print_log.write("UPDATEING STATUS params: \n"+str(my_status.schedule_params)+"\n")
         self.pub_status.publish(my_status) 
-        print "UPDATEING STATUS - 3"      
+        self.print_log.write("STATUS was sent"+"\n")
 
     def onHold(self, param):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "HOLD: "+ str( param)+"\n")
@@ -392,10 +393,13 @@ class StateMachine:
             # handler = self.handlers[self.startState.upper()][0]
             self.task_state = 1 # Running
             print "AAAAA"
+            self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+rospy.get_name()+ ": execFSM start "+"\n")
         # self.current_state_m_thread = multiprocessing.Process(target = self.run_state_machine, args = (cargo, self.q))
             self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
             self.current_state_m_thread.start()
+            self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+rospy.get_name()+ ": execFSM started "+"\n")
             while not rospy.is_shutdown():
+                self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM UPDATE: "+rospy.get_name()+"\n")
                 if self.task_state == 3:
                     self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM killed, joining thread, waiting for resume"+"\n")
                     self.current_state_m_thread.join()
@@ -440,14 +444,14 @@ class StateMachine:
                     self.fsm_stop_event.clear()
                     break
                 time.sleep(10)
-                self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "test"+"\n")
                 self.updateStatus()
         finally:
                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FINAL"+"\n")
                 self.fsm_stop_event.set()
-                while self.current_state_m_thread.is_alive():
-                    self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
-                    self.current_state_m_thread.join()                # raise InitializationError("must call .set_start() before .run()")
+                if self.current_state_m_thread != 0:
+                    while self.current_state_m_thread.is_alive():
+                        self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
+                        self.current_state_m_thread.join()                # raise InitializationError("must call .set_start() before .run()")
                 # if not self.endStates:
                 #     raise  InitializationError("at least one state must be an end_state")
 
