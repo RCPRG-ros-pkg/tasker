@@ -1,2 +1,3 @@
-float32 priority
-float32 deadline
+float32 cost
+float32 completion_time
+float32 cost_per_sec

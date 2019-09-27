@@ -40,7 +40,7 @@ my_priority = 0
 isInterrupting = False
 
 my_priority = 0 
-my_deadline = -1
+my_completion_time = -1
 isInterrupting = False
 
 dock_pose = [3.70, 1.90, 0.0, 0.0, 0.0, 0.0] # next to entrance | y ~ PI - back to door 
@@ -321,15 +321,15 @@ factor_sit = [0,0]
 # walk factor for human 0
 factor_walk[0] = 1
 # walk factor for human 1
-factor_walk[1] = 1.2
+factor_walk[1] = 2
 # sit factor for human 0
 factor_sit[0] = 1
 # sit factor for human 1
-factor_sit[1] = 1.2
+factor_sit[1] = 1
 # stand factor for human 0
 factor_stand[0] = 1
 # stand factor for human 1
-factor_stand[1] = 1.2
+factor_stand[1] = 2
 
 # ======================================================================================
 
@@ -380,6 +380,8 @@ def start(cargo_in, event_in, event_out):
 # ======================================================================================
 
 def move_to_human(cargo_in, event_in, event_out):
+    global last_exec_state_name
+    last_exec_state_name = "move_to_human"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "move_to_human"+"\n")
@@ -458,6 +460,8 @@ def hold_moving(cargo_in):
 # ======================================================================================
 
 def greet(cargo_in, event_in, event_out):
+    global last_exec_state_name
+    last_exec_state_name = "greet"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "greet"+"\n")
@@ -500,6 +504,8 @@ def hold_greet(cargo_in):
 # ======================================================================================
 
 def guide_human(cargo_in, event_in, event_out):
+    global last_exec_state_name
+    last_exec_state_name = "guide_human"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "guide_human"+"\n")
@@ -576,6 +582,9 @@ def hold_guide(cargo_in):
 # ======================================================================================
 
 def goodbye_human(cargo_in, event_in, event_out):
+    global last_exec_state_name
+    global human_posture
+    last_exec_state_name = "goodbye_human"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "goodbye_human"+"\n")
@@ -590,7 +599,7 @@ def goodbye_human(cargo_in, event_in, event_out):
 
         i+=1
         time.sleep(1)
-
+    human_posture = "ZERO"
     print( "\t WILL GO_TO_DOCK" + "\n")
 
     return ("go_to_dock", None)
@@ -598,6 +607,8 @@ def goodbye_human(cargo_in, event_in, event_out):
 # ======================================================================================
 
 def go_to_dock(cargo_in, event_in, event_out):
+    global last_exec_state_name
+    last_exec_state_name = "go_to_dock"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
     print( "go_to_dock"+"\n")
@@ -618,7 +629,7 @@ def go_to_dock(cargo_in, event_in, event_out):
            print( ""+"\n")
            print( "set HOLD"+"\n")
            print( ""+"\n")
-           return ("final", None)
+           return ("suspending", "go_to_dock")
        i+=1
        time.sleep(1)
 
@@ -637,10 +648,10 @@ def suspending(cargo_in):
     # getSuspend
     # -------
     global return_msg
-    global last_state_name
+    global last_exec_state_name
     global human_posture
-    last_state_name = cargo_in
-    strategy = ptf_get_suspend(last_state_name=cargo_in)
+    last_exec_state_name = cargo_in
+    strategy = ptf_get_suspend(last_exec_state_name=cargo_in)
     # -------
     # execSuspend
     # -------
@@ -689,6 +700,10 @@ def suspending(cargo_in):
         return_msg = []
         return_msg.append(human_name)
         return_msg.append(human_last_poses[human_id])
+    elif strategy == None:
+        pass
+        return ("final", None)
+
     return ("resume_state", None)
 
 
@@ -720,10 +735,10 @@ def resume_state(cargo_in, event_in, event_out):
 # ======================================================================================
 
 def final(cargo_in):
-    #move_base_cancel_goals()
-    pass
+    move_base_cancel_goals()
     return
-def getCost():
+def getSP():
+    sp = ScheduleParams()
     print "CALC COST"
     global human_posture
     global factor_walk
@@ -793,52 +808,66 @@ def getCost():
             # print "POSE: ",resp.plan.poses[i]
             path_distance_guide += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
     if human_posture == "walk":
+        sp.cost_per_sec = factor_walk[human_id]
         cost = path_distance_guide * factor_walk[human_id]
     if human_posture == "stand":
+        sp.cost_per_sec = factor_stand[human_id]
         cost = path_distance_approach*factor_stand[human_id] + path_distance_guide * factor_walk[human_id]
     if human_posture == "sit":
+        sp.cost_per_sec = factor_sit[human_id]
         cost = path_distance_approach*factor_sit[human_id] + path_distance_guide * factor_walk[human_id]
+    if human_posture == "ZERO":
+        sp.cost_per_sec = 0
+        cost = 0
     print "COST: ", cost
-    return cost
-def getPriority():
-    global my_priority
-    my_priority = getCost()
-    return my_priority
-def getDeadline():
-    global my_deadline
-    return my_deadline
-
+    sp.cost = cost
+    sp.completion_time = path_distance_approach + path_distance_guide
+    return sp
 
 def ptf_update_task(state_machine,TH_data):
-    global last_state_name
+    global last_exec_state_name
     print "UPDATEING TASK - 3"
     print "UPDATE_TASK UPDATE_TASK UPDATE_TASK: ", type(state_machine)
     state_machine.add_state("resume_state", resume_state,None)
-    return ("resume_state", last_state_name)
+    return ("resume_state", last_exec_state_name)
 
 def ptf_update_sp():
-    sp = ScheduleParams()
-    sp.priority = getPriority()
-    sp.deadline = getDeadline()
-    return sp
+    return getSP()
 
-def ptf_get_suspend(last_state_name):
-    if last_state_name == 'move_to_human':
+def ptf_get_suspend(last_exec_state_name):
+    if last_exec_state_name == 'move_to_human':
         return "hold_moving"
 
-    elif last_state_name == 'greet':
+    elif last_exec_state_name == 'greet':
         return "apologize"
 
-    elif last_state_name == 'guide_human':
+    elif last_exec_state_name == 'guide_human':
         return "hold_guide"
+    elif last_exec_state_name == 'goodbye_human':
+        return None
+    elif last_exec_state_name == 'go_to_dock':
+        return None
     else:
         print "NO SUSPEND STRATEGY FOR THE STATE!!!!!!!"
     return return_msg
+def ptf_suspend_condition(algorithm_input):
+    global human_posture
+    global last_exec_state_name
+    global human_id
+    suspend_strategy = ptf_get_suspend(last_exec_state_name)
+    if suspend_strategy == "hold_moving":
+        cost = factor_stand[human_id]
+    else:
+        cost = factor_sit[human_id]
+    return cost   
+
 # ======================================================================================
 
 if __name__== "__main__":
 
     try:
+        global debugging
+        debugging = False 
         global startFlag
         global my_priority
         global my_deadline
@@ -853,10 +882,10 @@ if __name__== "__main__":
         rospy.init_node(da_name, anonymous=False)
         print "DA: ",stri
         sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
-        print "\n\n\nDA.priority: ", sp.priority
-        my_priority = sp.priority
-        my_deadline = sp.deadline
-        print ("my_deadline = ", sp.deadline) 
+        print "\n\n\nDA.cost: ", sp.cost
+        my_cost = sp.cost
+        my_completion_time = sp.completion_time
+        print ("my_completion_time = ", sp.completion_time) 
         print ("version = ", version) 
         if version == "guideHuman-0":
 
@@ -878,13 +907,16 @@ if __name__== "__main__":
         f_name_2 = "./state_m_log"+version
         f1=open(f_name_1, 'w+')
         f2=open(f_name_2, 'w+')
+
+        debugging = True 
+
         rospy.init_node(da_name, anonymous=False)
             
         listener = tf.TransformListener()
         rospy.sleep(2)
         # wait_for_tiago_init()
 
-        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp)
+        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition)
         m.add_state("Start", start, None)
         m.add_state("suspending", suspending, None)
         m.add_state("move_to_human", move_to_human, None)
@@ -904,8 +936,10 @@ if __name__== "__main__":
 
     finally:
         print "ERROR"
-        f1.close()
-        f2.close()
+        global debugging
+        if debugging: 
+            f1.close()
+            f2.close()
 
 # ======================================================================================        
 

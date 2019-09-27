@@ -22,6 +22,7 @@ project(multitasker)
     StartTask.srv
     HoldConditions.srv
     SchedulingConditions.srv
+    SuspendConditions.srv
   )
 
   catkin_python_setup()

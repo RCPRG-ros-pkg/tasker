@@ -15,12 +15,12 @@ scheduler = threading.Thread
 switcher = threading.Thread
 th = TaskHarmoniser
 
+
 def updateSP(data):
 	global th
 	print("\nUPDATE SP\n")
-	print "updateSP: ",data.da_id, "SP: ", data.schedule_params
+	print "updateSP: ",data.da_id, "SP: \n", data.schedule_params
 	th.updateScheduleParams(data.da_id, data.schedule_params)
-
 	print("\nUPDATED SP\n")
 	
 def initDA(data):
@@ -41,7 +41,9 @@ def scheduler():
 	global _FINISH
 	global th
 	while True:
+		print "\n SCHEDULING \n"
 		th.schedule()
+		print "\n SCHEDULED \n"
 		time.sleep(1)
 		if _FINISH:
 			th.sendIndicator()
@@ -50,6 +52,7 @@ def switcher():
 	global th
 	global _FINISH
 	while True:
+		print "\n SWITCHING \n"
 		th.switchDA()
 		if _FINISH:
 			break

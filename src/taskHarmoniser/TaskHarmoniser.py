@@ -57,8 +57,6 @@ class TaskHarmoniser():
     def updateScheduleParams(self, da_id, scheduleParams):
         # type: (int, ScheduleParams) -> None
         self.lock.acquire()
-        print "TH/ID: ",da_id
-        print "TH/scheduleParams: ",scheduleParams
         if self.isExecuting():
             if self.execField["da_id"] == da_id:
                 self.execField["scheduleParams"] = scheduleParams
@@ -100,19 +98,19 @@ class TaskHarmoniser():
             for key_id in self.queue.items():
                 if self.queue[key_id[0]]["da_id"] == i:
                     i = i + 1
-                    print("queue C")
+                    # print("queue C")
                     continue
             if self.isExecuting():
                 if self.execField["da_id"] == i:
                     i = i + 1
-                    print("E C")
+                    # print("E C")
                     continue
             if self.isInterrupting():
                 if self.interruptField["da_id"] == i:
                     i = i + 1
-                    print("I C")
+                    # print("I C")
                     continue
-            print("break")
+            # print("break")
             break
         self.lock.release()
         return i
@@ -129,7 +127,7 @@ class TaskHarmoniser():
             if not self.switchIndicator.isSet():
                 self.switchIndicator.set()
         else:
-            print("executing")
+            # print("executing")
             if next_da["priority"] > self.execField["priority"]:
                 if not self.isInterrupting():
                     print("NO INTERRUPTING DA, ", next_da["da_id"], " is interrupting now")
@@ -138,33 +136,77 @@ class TaskHarmoniser():
                         self.switchIndicator.set()
 
                 elif next_da["priority"] > self.interruptField["priority"]:
-                    print("da: ", next_da["da_id"],"priority: ",next_da["priority"], "\n Replaces :", self.interruptField["da_id"], "with priority: ", self.interruptField["priority"])
+                    # print("da: ", next_da["da_id"],"priority: ",next_da["priority"], "\n Replaces :", self.interruptField["da_id"], "with priority: ", self.interruptField["priority"])
                     self.makeInterrupting(next_da["da_id"])
                     if not self.switchIndicator.isSet():
                         self.switchIndicator.set()
     def schedule(self):
 
-        print("\nSCHEDULE\n")
+        # print("\nSCHEDULE\n")
         self.lock.acquire()
         if self.isExecuting():
             exec_da_name = "/"+self.execField["da_name"]
-            print("checking  EXEC node: ", exec_da_name)
+            # print("checking  EXEC node: ", exec_da_name)
             if not rosnode.rosnode_ping(exec_da_name, 1):
                 print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
                 self.execField = {}
-            self.execField["priority"] = self.execField["scheduleParams"].priority
+            
+            self.execField["priority"] = self.execField["scheduleParams"].cost
         if self.isInterrupting():
-            self.interruptField["priority"] = self.interruptField["scheduleParams"].priority
-        print (self.queue)
+            self.interruptField["priority"] = self.interruptField["scheduleParams"].cost 
+            if self.isExecuting():
+                self.interruptField["priority"] += self.interruptField["scheduleParams"].cost_per_sec * self.execField["scheduleParams"].completion_time
+        # print (self.queue)
         for key_id in self.queue.items():
-            self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].priority
+            # queued_da_name = "/"+self.queue[key_id[0]]["da_name"]
+
+            # if not rosnode.rosnode_ping(queued_da_name, 1):
+            #     print("DA terminated")
+            #     del self.queue[key_id[0]]
+            # else:
+            self.queue[key_id[0]]["priority"] = self.queue[key_id[0]]["scheduleParams"].cost 
+            if self.isExecuting():
+                self.queue[key_id[0]]["priority"] += self.queue[key_id[0]]["scheduleParams"].cost_per_sec * self.execField["scheduleParams"].completion_time
         if len(self.queue) > 0:
             q = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]['priority'], reverse=True))
             # print ("Q: ",q)
+            if self.isExecuting():
+                highest_da = next(iter(q.items()))[1]
+                if self.execField["priority"] < highest_da["priority"]:
+                    print "WAITING FOR CONDITIONS"
+                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
+                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
+                    trig = SuspendConditionsRequest()
+                    resp = get_susp_cond(trig)
+                    print "HAVE CONDITIONS"
+                    self.execField["priority"] = self.execField["scheduleParams"].cost + resp.cost_per_sec*highest_da["scheduleParams"].completion_time
             self.updateQueue(q)
+        ###
+        #  print queue and fields
+        ###
+        if not self.isExecuting():
+            print "No EXEC dynamic agent"
+        else:
+            print "\nEXEC: "
+            print "ID: ", self.execField["da_id"]
+            print "Priority: ", self.execField["priority"]
+            print "SP: \n", self.execField["scheduleParams"], "\n"
+        if not self.isInterrupting():
+            print "No INTERRUPTING dynamic agent"
+        else:
+            print "\tINTERRUPT: "
+            print "ID: ", self.interruptField["da_id"]
+            print "Priority: ", self.interruptField["priority"]
+            print "SP: \n", self.interruptField["scheduleParams"], "\n"
+        print "\tQUEUE: "
+        for key_id in self.queue.items():
+            print "ID: ", self.queue[key_id[0]]["da_id"]
+            print "Priority: ", self.queue[key_id[0]]["priority"]
+            print "SP: \n", self.queue[key_id[0]]["scheduleParams"], "\n"
+
         self.lock.release()
-        print("\nSCHEDULED\n")
+        # print("\nSCHEDULED\n")
 
     def switchDA(self):
         self.switchIndicator.wait()
@@ -173,6 +215,9 @@ class TaskHarmoniser():
         if self.isExecuting():
             commanding = self.execField
             self.lock.release()
+            print("\nSWITCHING: waiting for EXEC hold_now\n")
+            rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/hold_now')
+            print("\nSWITCHING: have hold_now\n")
             hold_srv = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/hold_now', Trigger)
             trig = TriggerRequest()
             resp = hold_srv(trig)
@@ -188,16 +233,18 @@ class TaskHarmoniser():
         self.lock.release()
         print("SEND StartTask to initialised: ", interrupting["da_name"])
         srv_name = "/"+interrupting["da_name"]+"/multitasking/startTask"
-        print (srv_name)
+        # print (srv_name)
+        print("\nSWITCHING: waiting for QUEUED startTask\n")
         rospy.wait_for_service(srv_name)
         start_srv = rospy.ServiceProxy(srv_name, StartTask)
         start_srv(False, "")
-        rospy.wait_for_service('/'+interrupting["da_name"]+'/multitasking/get_hold_conditions')
+        print("\nSWITCHING: waiting for STARTED hold_now\n")
+        rospy.wait_for_service('/'+interrupting["da_name"]+'/multitasking/hold_now')
         self.lock.acquire()
-        print("\n Making executing\n")
+        # print("\n Making executing\n")
         self.makeExecuting()
         self.switchIndicator.clear()
-        print("\n Made executing\n")
+        # print("\n Made executing\n")
         self.lock.release()
         print("\nSWITCHED\n")
         
