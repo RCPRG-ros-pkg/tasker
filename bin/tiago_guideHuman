@@ -822,6 +822,7 @@ def getSP():
     print "COST: ", cost
     sp.cost = cost
     sp.completion_time = path_distance_approach + path_distance_guide
+    sp.final_resource_state.robot_position = req_path.goal.pose.position
     return sp
 
 def ptf_update_task(state_machine,TH_data):
@@ -850,16 +851,58 @@ def ptf_get_suspend(last_exec_state_name):
     else:
         print "NO SUSPEND STRATEGY FOR THE STATE!!!!!!!"
     return return_msg
-def ptf_suspend_condition(algorithm_input):
+def ptf_suspend_condition(suspend_request):
     global human_posture
     global last_exec_state_name
     global human_id
+    suspend_response = SuspendConditionsResponse()
     suspend_strategy = ptf_get_suspend(last_exec_state_name)
     if suspend_strategy == "hold_moving":
-        cost = factor_stand[human_id]
+        suspend_response.cost_per_sec = factor_stand[human_id]
     else:
-        cost = factor_sit[human_id]
-    return cost   
+        suspend_response.cost_per_sec = factor_sit[human_id]
+    ##
+    # plan to get cost from final state given by a candidate for interrupting task to the state required by this DA 
+    ##
+    path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
+    req_path = GetPlanRequest()
+    ros_time = rospy.Time()
+    trans = []
+    rate = rospy.Rate(5.0)
+    while not rospy.is_shutdown():
+        try:
+            listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
+            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
+            if len(trans) != 0:
+                break
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rate.sleep()
+            continue
+
+    path_distance = 0
+    req_path.start.header.frame_id = "map"
+    req_path.start.pose.position = suspend_request.final_resource_state.robot_position
+    req_path.start.pose.orientation.x = 0
+    req_path.start.pose.orientation.y = 0
+    req_path.start.pose.orientation.z = 0
+    req_path.start.pose.orientation.w = 0
+    req_path.goal.header.frame_id = "map"
+    req_path.goal.pose.position.x = human_last_poses[human_id][0]
+    req_path.goal.pose.position.y = human_last_poses[human_id][1]
+    req_path.goal.pose.position.z = human_last_poses[human_id][2]
+    req_path.goal.pose.orientation.x = 0
+    req_path.goal.pose.orientation.y = 0
+    req_path.goal.pose.orientation.z = 0
+    req_path.goal.pose.orientation.w = 0
+    resp = path_client(req_path)
+    # print "PATH LENGTH: ",len(resp.plan.poses)
+    path_distance_approach = 0
+    if len(resp.plan.poses) > 2:
+        for i in range(len(resp.plan.poses)-1):
+            # print "POSE: ",resp.plan.poses[i]
+            path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    suspend_response.cost_to_resume = path_distance_approach
+    return suspend_response   
 
 # ======================================================================================
 

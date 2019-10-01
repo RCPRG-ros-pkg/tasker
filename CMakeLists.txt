@@ -4,13 +4,14 @@ project(multitasker)
 
 # Get the information about this package's buildtime dependencies
   find_package(catkin REQUIRED
-    COMPONENTS message_generation std_msgs rospy)
+    COMPONENTS message_generation std_msgs geometry_msgs rospy)
 
   # Declare the message files to be built
   add_message_files(FILES
     TaskState.msg
     ScheduleParams.msg
     Status.msg
+    RobotResource.msg
   #  MyMessage2.msg
   )
 
@@ -54,7 +55,7 @@ endif()
 
 
   # Actually generate the language-specific message and service files
-  generate_messages(DEPENDENCIES std_msgs)
+  generate_messages(DEPENDENCIES std_msgs geometry_msgs)
 
 # Catkin package  
   catkin_package(

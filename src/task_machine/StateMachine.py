@@ -396,10 +396,7 @@ class StateMachine:
         return l_conditions
 
     def getSuspendConditions(self, req):
-        s_conditions = SuspendConditionsResponse()
-        factor = self.ptf_suspend_condition(req)
-        s_conditions.cost_per_sec = factor
-        return s_conditions
+        return self.ptf_suspend_condition(req)
 
     def run(self, cargo):
         try:
@@ -473,7 +470,7 @@ class StateMachine:
                     my_state.state_input = str(cargo) 
                     my_state.node_name = rospy.get_name()
                     self.exec_fsm_state = 4
-                    self.pub_statepublish( my_state)
+                    self.updateStatus()
                     self.fsm_stop_event.clear()
                     self.current_state_m_thread = FSMThread(target = self.run_state_machine, cargo_in = cargo, event_in = self.fsm_stop_event)
                     self.current_state_m_thread.start()

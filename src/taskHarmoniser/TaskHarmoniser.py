@@ -150,8 +150,8 @@ class TaskHarmoniser():
             if not rosnode.rosnode_ping(exec_da_name, 1):
                 print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
                 self.execField = {}
-            
-            self.execField["priority"] = self.execField["scheduleParams"].cost
+            else:
+                self.execField["priority"] = self.execField["scheduleParams"].cost
         if self.isInterrupting():
             self.interruptField["priority"] = self.interruptField["scheduleParams"].cost 
             if self.isExecuting():
@@ -178,7 +178,7 @@ class TaskHarmoniser():
                     rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
                     get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
                     trig = SuspendConditionsRequest()
-                    resp = get_susp_cond(trig)
+                    resp = get_susp_cond(highest_da["scheduleParams"].final_resource_state)
                     print "HAVE CONDITIONS"
                     self.execField["priority"] = self.execField["scheduleParams"].cost + resp.cost_per_sec*highest_da["scheduleParams"].completion_time
             self.updateQueue(q)
