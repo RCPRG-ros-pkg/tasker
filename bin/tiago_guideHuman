@@ -323,13 +323,13 @@ factor_walk[0] = 1
 # walk factor for human 1
 factor_walk[1] = 2
 # sit factor for human 0
-factor_sit[0] = 1
+factor_sit[0] = 0.1
 # sit factor for human 1
-factor_sit[1] = 1
+factor_sit[1] = 0.1
 # stand factor for human 0
-factor_stand[0] = 1
+factor_stand[0] = 0.1
 # stand factor for human 1
-factor_stand[1] = 2
+factor_stand[1] = 0.2
 
 # ======================================================================================
 
@@ -848,6 +848,8 @@ def ptf_get_suspend(last_exec_state_name):
         return None
     elif last_exec_state_name == 'go_to_dock':
         return None
+    elif last_exec_state_name == "None":
+        return None
     else:
         print "NO SUSPEND STRATEGY FOR THE STATE!!!!!!!"
     return return_msg
@@ -902,8 +904,55 @@ def ptf_suspend_condition(suspend_request):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
     suspend_response.cost_to_resume = path_distance_approach
-    return suspend_response   
+    return suspend_response 
 
+def ptf_cost_condition(cost_request):
+    global human_posture
+    global last_exec_state_name
+    global human_id
+    cost_response = CostConditionsResponse()
+    ##
+    # plan to get cost from final state given in request to the state required by this DA 
+    ##
+    path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
+    req_path = GetPlanRequest()
+    ros_time = rospy.Time()
+    trans = []
+    rate = rospy.Rate(5.0)
+    while not rospy.is_shutdown():
+        try:
+            listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
+            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
+            if len(trans) != 0:
+                break
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rate.sleep()
+            continue
+
+    path_distance = 0
+    req_path.start.header.frame_id = "map"
+    req_path.start.pose.position = cost_request.final_resource_state.robot_position
+    req_path.start.pose.orientation.x = 0
+    req_path.start.pose.orientation.y = 0
+    req_path.start.pose.orientation.z = 0
+    req_path.start.pose.orientation.w = 0
+    req_path.goal.header.frame_id = "map"
+    req_path.goal.pose.position.x = human_last_poses[human_id][0]
+    req_path.goal.pose.position.y = human_last_poses[human_id][1]
+    req_path.goal.pose.position.z = human_last_poses[human_id][2]
+    req_path.goal.pose.orientation.x = 0
+    req_path.goal.pose.orientation.y = 0
+    req_path.goal.pose.orientation.z = 0
+    req_path.goal.pose.orientation.w = 0
+    resp = path_client(req_path)
+    # print "PATH LENGTH: ",len(resp.plan.poses)
+    path_distance_approach = 0
+    if len(resp.plan.poses) > 2:
+        for i in range(len(resp.plan.poses)-1):
+            # print "POSE: ",resp.plan.poses[i]
+            path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    cost_response.cost_to_complete = path_distance_approach
+    return cost_response 
 # ======================================================================================
 
 if __name__== "__main__":
@@ -915,6 +964,8 @@ if __name__== "__main__":
         global my_priority
         global my_deadline
         global human_pose
+        global last_exec_state_name
+        last_exec_state_name = "None"
         # global human_last_poses
         global human_id
         version = sys.argv[1]
@@ -959,7 +1010,7 @@ if __name__== "__main__":
         rospy.sleep(2)
         # wait_for_tiago_init()
 
-        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition)
+        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
         m.add_state("Start", start, None)
         m.add_state("suspending", suspending, None)
         m.add_state("move_to_human", move_to_human, None)

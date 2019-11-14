@@ -42,9 +42,9 @@ def scheduler():
 	global th
 	while True:
 		print "\n SCHEDULING \n"
-		th.schedule()
+		th.schedule_new()
 		print "\n SCHEDULED \n"
-		time.sleep(1)
+		time.sleep(2)
 		if _FINISH:
 			th.sendIndicator()
 			break

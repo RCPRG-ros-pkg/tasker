@@ -140,28 +140,13 @@ class TaskHarmoniser():
                     self.makeInterrupting(next_da["da_id"])
                     if not self.switchIndicator.isSet():
                         self.switchIndicator.set()
-        def updateIrrField(self, next_da):
-        # print ("NDA: ", next_da)
-        # print ("NDA_ID: ", next_da["da_id"])
-        if not self.isExecuting():
-            print("not executing")
-            self.makeInterrupting(next_da["da_id"])
-            if not self.switchIndicator.isSet():
-                self.switchIndicator.set()
-        else:
-            # print("executing")
-            if next_da["priority"] > self.execField["priority"]:
-                if not self.isInterrupting():
-                    print("NO INTERRUPTING DA, ", next_da["da_id"], " is interrupting now")
-                    self.makeInterrupting(next_da["da_id"])
-                    if not self.switchIndicator.isSet():
-                        self.switchIndicator.set()
+    def updateIrrField(self, next_da):
+    # print ("NDA: ", next_da)
+    # print ("NDA_ID: ", next_da["da_id"])
+        self.makeInterrupting(next_da["da_id"])
+        if not self.switchIndicator.isSet():
+            self.switchIndicator.set()
 
-                elif next_da["priority"] > self.interruptField["priority"]:
-                    # print("da: ", next_da["da_id"],"priority: ",next_da["priority"], "\n Replaces :", self.interruptField["da_id"], "with priority: ", self.interruptField["priority"])
-                    self.makeInterrupting(next_da["da_id"])
-                    if not self.switchIndicator.isSet():
-                        self.switchIndicator.set()
     def schedule(self):
 
         # print("\nSCHEDULE\n")
@@ -229,6 +214,17 @@ class TaskHarmoniser():
 
         self.lock.release()
         # print("\nSCHEDULED\n")
+    def filterDA_GH(self, DA):
+        if DA[1]["da_type"] == "tiago_guideHuman":
+            return True
+        else:
+            return False
+    def filterDA_T(self, DA):
+        if DA[1]["da_type"] == "tiago_transport":
+            return True
+        else:
+            return False
+
     def schedule_new(self):
 
         # print("\nSCHEDULE\n")
@@ -245,27 +241,43 @@ class TaskHarmoniser():
         if len(self.queue) > 0:
             DAset_GH = {}
             DAset_T = {}
-            DAset_GH = {k: v for k, v in self.queue.items() if v[1]["da_type"] == "tiago_guideHuman"}
-            DAset_T = {k: v for k, v in self.queue.items() if v[1]["da_type"] == "tiago_transport"}
-            
-            q_GH = OrderedDict(sorted(DAset_GH.items(), 
-                            key=lambda kv: kv[1]['priority'], reverse=True))
-            q_T = OrderedDict(sorted(DAset_T.items(), 
-                            key=lambda kv: kv[1]['priority'], reverse=True))
+            cGH = {}
+            cT = {}
+            # print "Q:"
+            # print self.queue
+            DAset_GH = filter(self.filterDA_GH, self.queue.items())
+            DAset_T = filter(self.filterDA_T, self.queue.items())
+            # print "DAset_GH:"
+            # print DAset_GH
+            # print "DAset_T:"
+            # print DAset_T
+            # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
+            # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
+            q_GH = OrderedDict(sorted(DAset_GH, 
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=True))
+            q_T = OrderedDict(sorted(DAset_T, 
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=True))
             if len(DAset_GH) > 0:
+                # print "q_GH"
+                # print q_GH
                 cGH = next(iter(q_GH.items()))[1]
+                # print "cGH"
+                # print cGH
             if len(DAset_T) > 0:
                 cT = next(iter(q_T.items()))[1]
             if not (len(DAset_GH) > 0 or len(DAset_T) > 0):
                 print "No candidate"
                 return
             dac = {}
-            if self.isExecuting():
-                if  self.execField["da_type"] == "tiago_guideHuman":
+            if self.isExecuting() and not self.isInterrupting():
+                if  (self.execField["da_type"] == "tiago_guideHuman") and cGH!={}:
                     dac = cGH
+                elif (self.execField["da_type"] == "tiago_guideHuman") and cGH=={}:
+                    print "Exec: GH, no GH in queue"
                 elif self.execField["da_type"] == "tiago_transport":
                     if len(DAset_GH) > 0:
                         self.updateIrrField(cGH)
+                        self.lock.release()
                         return
                     elif len(DAset_T) > 0:
                         dac = cT
@@ -274,12 +286,13 @@ class TaskHarmoniser():
                 else:
                     print "DA in ExecField has unknown type task"
                 if dac == {}:
-                    print "UNKNOWN ERROR"
+                    print "No candidate"
+                    self.lock.release()
                     return
-                if dac["priority"] > self.execField["priority"]:
-                    print "WAITING FOR COST from exec"
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_cost_on_conditions')
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_cost_on_conditions', SuspendConditions)
+                if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
+                    print "WAITING FOR SUSPEND COST from exec"
+                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
+                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
                     trig = SuspendConditionsRequest()
                     resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
                     cc_exec = resp.cost_to_resume
@@ -287,45 +300,49 @@ class TaskHarmoniser():
 
                     print "WAITING FOR COST from candidate"
                     rospy.wait_for_service('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions')
-                    get_susp_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions', SuspendConditions)
-                    trig = SuspendConditionsRequest()
-                    resp = get_susp_cond(self.execField["scheduleParams"].final_resource_state)
-                    cc_dac = resp.cost_to_resume
-                    ccps_dac = resp.cost_per_sec
+                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions', CostConditions)
+                    trig = CostConditionsRequest()
+                    resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
+                    cc_dac = resp.cost_to_complete
+                    ccps_dac = dac["scheduleParams"].cost_per_sec
 
-                    c_switch = dac["priority"] + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
-                    c_wait = self.execField["priority"] + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
-                    if c_switch > c_wait:
+                    c_switch = dac["scheduleParams"].cost + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
+                    c_wait = self.execField["scheduleParams"].cost + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
+                    if (c_switch < (c_wait - c_wait*0.1)):
                         self.updateIrrField(dac)
                 else:
                     print "candidate priority was less then executing task"
-            else:
+            elif not self.isExecuting() and not self.isInterrupting():
+                print "No EXEC dynamic agent"
                 if len(DAset_GH) > 0:
+                    print "GH len > 0"
                     self.updateIrrField(cGH)
-                    return
                 elif len(DAset_T) > 0:
+                    print "T len > 0"
                     self.updateIrrField(cT)
                 else:
                     print "No candidate"
+            else:
+                print "Processing switch"
 
         if not self.isExecuting():
             print "No EXEC dynamic agent"
         else:
             print "\nEXEC: "
             print "ID: ", self.execField["da_id"]
-            print "Priority: ", self.execField["priority"]
+            print "Cost: ", self.execField["scheduleParams"].cost
             print "SP: \n", self.execField["scheduleParams"], "\n"
         if not self.isInterrupting():
             print "No INTERRUPTING dynamic agent"
         else:
             print "\tINTERRUPT: "
             print "ID: ", self.interruptField["da_id"]
-            print "Priority: ", self.interruptField["priority"]
+            print "Cost: ", self.interruptField["scheduleParams"].cost
             print "SP: \n", self.interruptField["scheduleParams"], "\n"
         print "\tQUEUE: "
         for key_id in self.queue.items():
             print "ID: ", self.queue[key_id[0]]["da_id"]
-            print "Priority: ", self.queue[key_id[0]]["priority"]
+            print "Cost: ", self.queue[key_id[0]]["scheduleParams"].cost
             print "SP: \n", self.queue[key_id[0]]["scheduleParams"], "\n"
 
         self.lock.release()

@@ -119,7 +119,7 @@ def run_blocking(handler, arguments = None, state_event = None):
     return ret
 
 class StateMachine:
-    def __init__(self, file, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition):
+    def __init__(self, file, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition):
         self.startFlag = False
         self.isInterrupting = False
         self.da_ID = da_ID
@@ -127,6 +127,7 @@ class StateMachine:
         self.ptf_update_task = ptf_update_task
         self.ptf_update_sp = ptf_update_sp
         self.ptf_suspend_condition = ptf_suspend_condition
+        self.ptf_cost_condition = ptf_cost_condition
         self.print_log = file
         self.handlers = {}
         self.startState = None
@@ -397,6 +398,8 @@ class StateMachine:
 
     def getSuspendConditions(self, req):
         return self.ptf_suspend_condition(req)
+    def getCostConditions(self, req):
+        return self.ptf_cost_condition(req)
 
     def run(self, cargo):
         try:
@@ -404,6 +407,8 @@ class StateMachine:
             node_namespace = rospy.get_name() + "/multitasking"
             start_name = node_namespace + "/startTask"
             start_srv = rospy.Service(start_name, StartTask, self.startTask)
+            cost_cond_name = node_namespace + "/get_cost_on_conditions"
+            self.cost_cond_srv = rospy.Service(cost_cond_name, CostConditions, self.getCostConditions)
             r = rospy.Rate(5)
             while not rospy.is_shutdown():
                 self.updateStatus()
