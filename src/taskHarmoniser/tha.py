@@ -41,12 +41,14 @@ def scheduler():
 	global _FINISH
 	global th
 	while True:
+		cost_file = open("./TH_cost", "a+")
 		print "\n SCHEDULING \n"
-		th.schedule_new()
+		th.schedule_new(cost_file)
 		print "\n SCHEDULED \n"
 		time.sleep(2)
 		if _FINISH:
 			th.sendIndicator()
+			cost_file.close()
 			break
 def switcher():
 	global th
