@@ -162,7 +162,7 @@ pose:
 '''
 #human_pose = [-0.3209, -0.1005, +0.0000, +0.0000, +0.0000, -161.0926]
 
-human_pose = [-0.4857, +0.1426, +0.0000, +0.0000, +0.0000, -161.0926]
+human_pose = [2, 9, +0.0000, +0.0000, +0.0000, -161.0926]
 human_poses.append(human_pose)
 
 
@@ -256,7 +256,7 @@ pose:
 '''
 
 #human_pose = [+3.2205, +1.0311, +0.0000, +0.0000, +0.0000, -101.8592]
-human_pose = [+3.3166, +1.7026, +0.0000, +0.0000, +0.0000, -101.8592]
+human_pose = [2.7, -2, +0.0000, +0.0000, +0.0000, -101.8592]
 human_poses.append(human_pose)
 
 # dest
@@ -468,7 +468,8 @@ def observe_report(cargo_in, event_in, event_out):
 
         print( "\t Checking if the speech is over"+"\n")
         # run_blocking(blocking_call, cargo_in, event)
-
+        i=i+1
+        rospy.sleep(1)
     print( "\t SENDING REPORT\n")
     return ("final", None)
 
@@ -533,6 +534,7 @@ def getSP():
     global factor_walk
     global factor_stand
     global factor_sit
+    global human_poses
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
     ros_time = rospy.Time()
@@ -558,9 +560,9 @@ def getSP():
     req_path.start.pose.orientation.z = rot[2]
     req_path.start.pose.orientation.w = rot[3]
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_dests[human_id][0]
-    req_path.goal.pose.position.y = human_dests[human_id][1]
-    req_path.goal.pose.position.z = human_dests[human_id][2]
+    req_path.goal.pose.position.x = human_poses[human_id][0]
+    req_path.goal.pose.position.y = human_poses[human_id][1]
+    req_path.goal.pose.position.z = human_poses[human_id][2]
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -572,7 +574,7 @@ def getSP():
         for i in range(len(resp.plan.poses)-1):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
-    print "COST: ", cost
+    print "COST: ", path_distance_approach
     sp.cost = path_distance_approach
     sp.cost_per_sec = 1
     sp.completion_time = path_distance_approach
@@ -593,6 +595,7 @@ def ptf_suspend_condition(suspend_request):
     global human_posture
     global last_exec_state_name
     global human_id
+    global human_poses
     suspend_response = SuspendConditionsResponse()
     ##
     # plan to get cost from final state given by a candidate for interrupting task to the state required by this DA 
@@ -620,9 +623,9 @@ def ptf_suspend_condition(suspend_request):
     req_path.start.pose.orientation.z = 0
     req_path.start.pose.orientation.w = 0
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_dests[human_id][0]
-    req_path.goal.pose.position.y = human_dests[human_id][1]
-    req_path.goal.pose.position.z = human_dests[human_id][2]
+    req_path.goal.pose.position.x = human_poses[human_id][0]
+    req_path.goal.pose.position.y = human_poses[human_id][1]
+    req_path.goal.pose.position.z = human_poses[human_id][2]
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -642,6 +645,7 @@ def ptf_cost_condition(cost_request):
     global human_posture
     global last_exec_state_name
     global human_id
+    global human_poses
     cost_response = CostConditionsResponse()
     ##
     # plan to get cost from final state given in request to the state required by this DA 
@@ -669,9 +673,9 @@ def ptf_cost_condition(cost_request):
     req_path.start.pose.orientation.z = 0
     req_path.start.pose.orientation.w = 0
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_dests[human_id][0]
-    req_path.goal.pose.position.y = human_dests[human_id][1]
-    req_path.goal.pose.position.z = human_dests[human_id][2]
+    req_path.goal.pose.position.x = human_poses[human_id][0]
+    req_path.goal.pose.position.y = human_poses[human_id][1]
+    req_path.goal.pose.position.z = human_poses[human_id][2]
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -713,13 +717,13 @@ if __name__== "__main__":
         my_completion_time = sp.completion_time
         print ("my_completion_time = ", sp.completion_time) 
         print ("version = ", version) 
-        if version == "guideHuman-0":
+        if version == "fell-0":
 
             human_name = "John"
             room_number = "10"
             human_id = 0
 
-        elif version == "guideHuman-1":
+        elif version == "fell-1":
 
             human_name = "Mark"
             room_number = "15"

@@ -220,7 +220,7 @@ class TaskHarmoniser():
         else:
             return False
     def filterDA_T(self, DA):
-        if DA[1]["da_type"] == "tiago_transport":
+        if DA[1]["da_type"] == "tiago_humanFell":
             return True
         else:
             return False
@@ -274,7 +274,7 @@ class TaskHarmoniser():
                     dac = cGH
                 elif (self.execField["da_type"] == "tiago_guideHuman") and cGH=={}:
                     print "Exec: GH, no GH in queue"
-                elif self.execField["da_type"] == "tiago_transport":
+                elif self.execField["da_type"] == "tiago_humanFell":
                     if len(DAset_GH) > 0:
                         self.updateIrrField(cGH)
                         self.lock.release()
@@ -287,9 +287,7 @@ class TaskHarmoniser():
                     print "DA in ExecField has unknown type task"
                 if dac == {}:
                     print "No candidate"
-                    self.lock.release()
-                    return
-                if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
+                elif dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
                     print "WAITING FOR SUSPEND COST from exec"
                     rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
                     get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)

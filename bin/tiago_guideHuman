@@ -602,7 +602,7 @@ def goodbye_human(cargo_in, event_in, event_out):
     human_posture = "ZERO"
     print( "\t WILL GO_TO_DOCK" + "\n")
 
-    return ("go_to_dock", None)
+    return ("final", None)
 
 # ======================================================================================
 
@@ -1020,7 +1020,6 @@ if __name__== "__main__":
         m.add_state("guide_human", guide_human, None)
         m.add_state("hold_guide", hold_guide, None)
         m.add_state("goodbye_human", goodbye_human, None)
-        m.add_state("go_to_dock", go_to_dock, None, facultative = True)
         #m.add_state("go_to_dock", go_to_dock, None) # for testing
         m.add_state("final", final, end_state=True)
         m.set_start("Start")
