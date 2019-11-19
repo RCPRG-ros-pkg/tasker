@@ -28,15 +28,18 @@ class TaskHarmoniser():
     def addDA(self, added, da_name, da_type):
         # type: (int) -> None
         self.lock.acquire()        
-        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
+        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
         self.queue[added] = da
         self.lock.release()
     def updateDA(self, da_id, da_name, da_type, priority, scheduleParams):
         # type: (int, int, ScheduleParams) -> None
-        da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'priority': priority, 'scheduleParams': scheduleParams}
+        da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'priority': priority, 'ping_count': 0, 'scheduleParams': scheduleParams}
     def updateDA(self, da):
         # type: (dict) -> None
-       self.queue[da["da_id"]] = da
+        self.queue[da["da_id"]] = da
+    def removeDA(self, da):
+        # type: (dict) -> None
+        self.queue.pop(da["da_id"], None)
     def updatePriority(self, da_id, priority):
         # type: (int, int) -> None
         self.lock.acquire()
@@ -68,7 +71,8 @@ class TaskHarmoniser():
                 self.interruptField["scheduleParams"] = scheduleParams
                 self.lock.release()
                 return
-        self.queue[da_id]["scheduleParams"] = scheduleParams
+        if self.queue.has_key(da_id):
+            self.queue[da_id]["scheduleParams"] = scheduleParams
         self.lock.release()
     def makeInterrupting(self, da_id):
         # type: (int) -> None
@@ -234,7 +238,6 @@ class TaskHarmoniser():
             return False
 
     def schedule_new(self, cost_file):
-
         # print("\nSCHEDULE\n")
         self.lock.acquire()
         debug = False
@@ -247,7 +250,17 @@ class TaskHarmoniser():
             else:
                 self.execField["priority"] = self.execField["scheduleParams"].cost
 
+        for da in self.queue.items():
+            if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
+                rospy.sleep(3)
+                if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
+                    print "REMOVED:"
+                    print da[1]["da_name"]
+                    self.removeDA(da[1])
+                print "NEXT DA"
+        print "OUT OUT"
         if len(self.queue) > 0:
+
             DAset_GH = {}
             DAset_HF = {}
             cGH = {}
@@ -322,47 +335,62 @@ class TaskHarmoniser():
                     cost_file.write("\t"+str(self.execField["scheduleParams"].cost)+"\n")
                     cost_file.write("DAC cost:"+"\n")
                     cost_file.write("\t"+str(dac["da_name"])+": "+str(dac["scheduleParams"].cost)+"\n")
-                    if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
-                        cost_file.write("\n"+"Have candidate"+"\n")
-                        cost_file.write("CHECK pair combinations"+"\n")
-                        print "WAITING FOR SUSPEND COST from exec"
-                        rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
-                        get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
-                        trig = SuspendConditionsRequest()
-                        resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
-                        cost_file.write("\n"+"EXEC:"+"\n")
-                        cc_exec = resp.cost_to_resume
-                        cost_file.write("\tcc:"+"\n")
-                        cost_file.write(str(cc_exec)+"\n")
-                        ccps_exec = resp.cost_per_sec
-                        cost_file.write("\tccps:"+"\n")
-                        cost_file.write(str(ccps_exec)+"\n")
+                    # if dac["scheduleParams"].cost < self.execField["scheduleParams"].cost:
+                    cost_file.write("\n"+"Have candidate"+"\n")
+                    cost_file.write("CHECK pair combinations"+"\n")
+                    print "WAITING FOR SUSPEND COST from exec"
+                    exec_da_name = "/"+self.execField["da_name"]
+                    if not rosnode.rosnode_ping(exec_da_name, 1):
+                        print("EXEC FINIIIIIISSSSSHHHHHHEEEEDDDD")
+                        self.execField = {}
+                        self.lock.release()
+                        return
+                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
+                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
+                    trig = SuspendConditionsRequest()
+                    resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
+                    cost_file.write("\n"+"EXEC:"+"\n")
+                    cc_exec = resp.cost_to_resume
+                    cost_file.write("\tcc:"+"\n")
+                    cost_file.write(str(cc_exec)+"\n")
+                    ccps_exec = resp.cost_per_sec
+                    cost_file.write("\tccps:"+"\n")
+                    cost_file.write(str(ccps_exec)+"\n")
 
-                        print "WAITING FOR COST from candidate"
-                        rospy.wait_for_service('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions')
-                        get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions', CostConditions)
-                        trig = CostConditionsRequest()
-                        resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
-                        cc_dac = resp.cost_to_complete
-                        cost_file.write("\n"+"DAC:"+"\n")
-                        cost_file.write("\tcc:"+"\n")
-                        cost_file.write(str(cc_dac)+"\n")
-                        ccps_dac = dac["scheduleParams"].cost_per_sec
-                        cost_file.write("\tccps:"+"\n")
-                        cost_file.write(str(ccps_dac)+"\n")
-                        cost_file.write("\n"+"COMBINATION:"+"\n")
-                        c_switch = dac["scheduleParams"].cost + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
-                        c_wait = self.execField["scheduleParams"].cost + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
-                        cost_file.write("\tc_switch:"+"\n")
-                        cost_file.write(str(c_switch)+"\n")
-                        cost_file.write("\tc_wait:"+"\n")
-                        cost_file.write(str(c_wait)+"\n")
-                        if (c_switch < (c_wait - c_wait*0.1)):
-                            cost_file.write("\n"+"SWITCH SWITCH SWITCH SWITCH "+"\n")
-                            self.updateIrrField(dac,cost_file)
-                    else:
-                        cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
-                        print "candidate priority was less then executing task"
+                    print "WAITING FOR COST from candidate"
+                    dac_name = "/"+dac["da_name"]
+                    if not rosnode.rosnode_ping(dac_name, 1):
+                        rospy.sleep(3)
+                        if not rosnode.rosnode_ping(dac_name, 1):
+                            print "REMOVED:"
+                            print dac["da_name"]
+                            self.removeDA(dac)
+                            self.lock.release()
+                            return
+                    rospy.wait_for_service('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions')
+                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions', CostConditions)
+                    trig = CostConditionsRequest()
+                    resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
+                    cc_dac = resp.cost_to_complete
+                    cost_file.write("\n"+"DAC:"+"\n")
+                    cost_file.write("\tcc:"+"\n")
+                    cost_file.write(str(cc_dac)+"\n")
+                    ccps_dac = dac["scheduleParams"].cost_per_sec
+                    cost_file.write("\tccps:"+"\n")
+                    cost_file.write(str(ccps_dac)+"\n")
+                    cost_file.write("\n"+"COMBINATION:"+"\n")
+                    c_switch = dac["scheduleParams"].cost + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
+                    c_wait = self.execField["scheduleParams"].cost + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
+                    cost_file.write("\tc_switch:"+"\n")
+                    cost_file.write(str(c_switch)+"\n")
+                    cost_file.write("\tc_wait:"+"\n")
+                    cost_file.write(str(c_wait)+"\n")
+                    if (c_switch < (c_wait - c_wait*0.1)):
+                        cost_file.write("\n"+"SWITCH SWITCH SWITCH SWITCH "+"\n")
+                        self.updateIrrField(dac,cost_file)
+                    # else:
+                    #     cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
+                    #     print "candidate priority was less then executing task"
             elif not self.isExecuting() and not self.isInterrupting():
                 print "No EXEC dynamic agent"
                 if len(DAset_HF) > 0:

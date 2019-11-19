@@ -504,8 +504,8 @@ class StateMachine:
                         if debug:
                             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "trying to kill FSM"+"\n")
                         self.current_state_m_thread.join()                # raise InitializationError("must call .set_start() before .run()")
-
-                self.updateStatus()
+                if not rospy.is_shutdown():
+                    self.updateStatus()
                 # if not self.endStates:
                 #     raise  InitializationError("at least one state must be an end_state")
 

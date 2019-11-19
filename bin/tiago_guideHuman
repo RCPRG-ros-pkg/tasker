@@ -29,10 +29,16 @@ from tiago_utils import action_status_callback
 from nav_msgs.msg  import *
 from nav_msgs.srv  import *
 # --------------------------------
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Twist
+# --------------------------------
+
+
 global listener
 global human_id
 global human_posture
 global return_msg
+global marker_poses
 human_posture = "stand"
 return_msg = []
 startFlag = False
@@ -116,6 +122,7 @@ pose:
 human_poses = []
 human_dests = []
 human_last_poses = []
+marker_poses = []
 
 # * * * * * * * * * * * * * * ACTOR1 * * * * * * * * * * * * * * * *
 
@@ -164,6 +171,8 @@ pose:
 
 human_pose = [-0.4857, +0.1426, +0.0000, +0.0000, +0.0000, -161.0926]
 human_poses.append(human_pose)
+marker_pose = [-1.095, 1.248, 0, +0.0000, +0.0000, -161.0926]
+marker_poses.append(marker_pose)
 
 
 # dest 
@@ -257,7 +266,9 @@ pose:
 
 #human_pose = [+3.2205, +1.0311, +0.0000, +0.0000, +0.0000, -101.8592]
 human_pose = [+3.3166, +1.7026, +0.0000, +0.0000, +0.0000, -101.8592]
+marker_pose = [+3.3166, +1.0026, +0.0000, +0.0000, +0.0000, -101.8592]
 human_poses.append(human_pose)
+marker_poses.append(marker_pose)
 
 # dest
 
@@ -330,7 +341,8 @@ factor_sit[1] = 0.1
 factor_stand[0] = 0.1
 # stand factor for human 1
 factor_stand[1] = 0.2
-
+global marker_pose_list
+marker_pose_list = []
 # ======================================================================================
 
 def blocking_call(queue):
@@ -502,6 +514,87 @@ def hold_greet(cargo_in):
     return ("move_to_human", return_msg )
 
 # ======================================================================================
+def add_marker(pose):
+    global marker_pub
+    global marker
+    global human_id
+    marker_pub = rospy.Publisher("ellipse", Marker)
+    marker_sub = rospy.Subscriber("human_vel", Twist, update_human_pose)
+    marker = Marker();
+    marker.header.frame_id = "map";
+    marker.header.stamp = rospy.Time.now();
+    marker.ns = "human";
+    marker.id = human_id;
+    marker.type = Marker.CYLINDER
+    marker.action = Marker.ADD
+    marker.pose.position.x = pose[0]
+    marker.pose.position.y = pose[1]
+    marker.pose.position.z = 0.5
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+    marker.scale.x = 0.3
+    marker.scale.y = 0.3
+    marker.scale.z = 1
+    marker.color.a = 1.0 
+    marker.color.r = 1.0 
+    marker.color.g = 1.0 - human_id
+    marker.color.b = 0.0 
+    marker_pub.publish( marker )
+
+def update_marker(pose):
+    global marker_pub
+    global marker
+    global human_id
+    marker.header.frame_id = "map";
+    marker.header.stamp = rospy.Time.now();
+    marker.ns = "human";
+    marker.id = human_id;
+    marker.type = Marker.CYLINDER
+    marker.action = Marker.MODIFY
+    marker.pose.position.x = pose[0]
+    marker.pose.position.y = pose[1]
+    marker.pose.position.z = 0.5
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+    marker.scale.x = 0.3
+    marker.scale.y = 0.3
+    marker.scale.z = 1
+    marker.color.a = 1.0 
+    marker.color.r = 1.0 
+    marker.color.g = 1.0 - human_id
+    marker.color.b = 0.0 
+
+def remove_marker():
+    global marker_pub
+    global marker
+    global human_id
+    marker.header.frame_id = "map";
+    marker.header.stamp = rospy.Time.now();
+    marker.ns = "human";
+    marker.id = human_id;
+    marker.type = Marker.CYLINDER
+    marker.action = Marker.DELETE
+    marker_pub.publish( marker );
+
+def publish_human_pose():
+    global marker_pub
+    global marker
+    marker_pub.publish( marker );
+
+def update_human_pose(vel):
+    global human_last_poses
+    global human_id
+    global marker_poses
+    global marker_pose_list
+    marker_poses[human_id][0] = marker_poses[human_id][0] + vel.linear.x
+    marker_poses[human_id][1] = marker_poses[human_id][1] + vel.linear.y 
+    update_marker(marker_poses[human_id])
+    publish_human_pose()
+
 
 def guide_human(cargo_in, event_in, event_out):
     global last_exec_state_name
@@ -540,7 +633,6 @@ def guide_human(cargo_in, event_in, event_out):
         yaw   *= (180.0 / math.pi)
         human_last_pose_temp = [trans[0], trans[1], trans[2], roll, pitch, yaw]
         print ( "\t human_last_pose: " + str(human_last_pose_temp) )
-        human_last_poses[human_id] = human_last_pose_temp
 
         if event_in.isSet():
             event_out.set()
@@ -734,10 +826,11 @@ def resume_state(cargo_in, event_in, event_out):
 
 # ======================================================================================
 
-def final(cargo_in):
+def final(cargo_in, event_in, event_out):
     move_base_cancel_goals()
     return
 def getSP():
+    publish_human_pose()
     sp = ScheduleParams()
     print "CALC COST"
     global human_posture
@@ -903,6 +996,26 @@ def ptf_suspend_condition(suspend_request):
         for i in range(len(resp.plan.poses)-1):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
+    
+    #######
+    ####
+    ##
+    ##   TO DO : skalowanie kosztu dla ptf_cost_condition i ptf_suspend_condition
+    ####
+    #######
+    if human_posture == "walk"
+        cost_per_sec = factor_walk[human_id]
+        cost = path_distance_guide * factor_walk[human_id]
+    if human_posture == "stand"
+        cost_per_sec = factor_stand[human_id]
+        cost = path_distance_approach*factor_stand[human_id] + path_distance_guide * factor_walk[human_id]
+    if human_posture == "sit"
+        cost_per_sec = factor_sit[human_id]
+        cost = path_distance_approach*factor_sit[human_id] + path_distance_guide * factor_walk[human_id]
+    if human_posture == "ZERO"
+        cost_per_sec = 0
+        cost = 0
+
     suspend_response.cost_to_resume = path_distance_approach
     return suspend_response 
 
@@ -963,7 +1076,7 @@ if __name__== "__main__":
         global startFlag
         global my_priority
         global my_deadline
-        global human_pose
+        global human_poses
         global last_exec_state_name
         last_exec_state_name = "None"
         # global human_last_poses
@@ -975,11 +1088,11 @@ if __name__== "__main__":
         stri = sys.argv[4]
         rospy.init_node(da_name, anonymous=False)
         print "DA: ",stri
-        sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
-        print "\n\n\nDA.cost: ", sp.cost
-        my_cost = sp.cost
-        my_completion_time = sp.completion_time
-        print ("my_completion_time = ", sp.completion_time) 
+        # sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
+        # print "\n\n\nDA.cost: ", sp.cost
+        # my_cost = sp.cost
+        # my_completion_time = sp.completion_time
+        # print ("my_completion_time = ", sp.completion_time) 
         print ("version = ", version) 
         if version == "guideHuman-0":
 
@@ -1009,6 +1122,7 @@ if __name__== "__main__":
         listener = tf.TransformListener()
         rospy.sleep(2)
         # wait_for_tiago_init()
+        add_marker(marker_poses[human_id])
 
         m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
         m.add_state("Start", start, None)
@@ -1030,6 +1144,7 @@ if __name__== "__main__":
     finally:
         print "ERROR"
         global debugging
+        remove_marker()
         if debugging: 
             f1.close()
             f2.close()

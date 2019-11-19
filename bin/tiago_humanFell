@@ -28,6 +28,7 @@ from tiago_utils import action_status_callback
 
 from nav_msgs.msg  import *
 from nav_msgs.srv  import *
+from visualization_msgs.msg import Marker
 # --------------------------------
 global listener
 global human_id
@@ -163,6 +164,8 @@ pose:
 #human_pose = [-0.3209, -0.1005, +0.0000, +0.0000, +0.0000, -161.0926]
 
 human_pose = [2, 9, +0.0000, +0.0000, +0.0000, -161.0926]
+human_poses.append(human_pose)
+human_poses.append(human_pose)
 human_poses.append(human_pose)
 
 
@@ -331,7 +334,52 @@ factor_stand[0] = 0.1
 # stand factor for human 1
 factor_stand[1] = 0.2
 
+
 # ======================================================================================
+def publish_human_pose():
+    global marker_pub
+    global marker
+    marker_pub.publish( marker );
+
+def add_marker(pose):
+    global marker_pub
+    global marker
+    global human_id
+    marker_pub = rospy.Publisher("ellipse", Marker)
+    marker = Marker();
+    marker.header.frame_id = "map";
+    marker.header.stamp = rospy.Time.now();
+    marker.ns = "human";
+    marker.id = human_id;
+    marker.type = Marker.CYLINDER
+    marker.action = Marker.ADD
+    marker.pose.position.x = pose[0]
+    marker.pose.position.y = pose[1]
+    marker.pose.position.z = 0.5
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+    marker.scale.x = 0.3
+    marker.scale.y = 0.3
+    marker.scale.z = 1
+    marker.color.a = 1.0 
+    marker.color.r = 0.0 
+    marker.color.g = 1.0 
+    marker.color.b = 3.0 - human_id
+    marker_pub.publish( marker )
+
+def remove_marker():
+    global marker_pub
+    global marker
+    global human_id
+    marker.header.frame_id = "map";
+    marker.header.stamp = rospy.Time.now();
+    marker.ns = "human";
+    marker.id = human_id;
+    marker.type = Marker.CYLINDER
+    marker.action = Marker.DELETE
+    marker_pub.publish( marker );
 
 def blocking_call(queue):
 
@@ -395,17 +443,9 @@ def move_to_human(cargo_in, event_in, event_out):
     global human_id
     global return_msg
 
-    if ( cargo_in[1] != None ):
-
-        # not the first try
-        print ( "\t NOT_1st \t human_id: " + str(human_id) + "\t cargo_in[0]: " + str(cargo_in[0]) + "\n \t \t \t \t \t cargo_in[0][1]: " + str(cargo_in[0][1]) + "\n \t \t \t \t \t cargo_in[1]: " + str(cargo_in[1]) + "\n" )
-        client = move_base_set_goal(cargo_in[1])
-
-    else:
-
-        # first try
-        print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
-        client = move_base_set_goal( human_poses[human_id] )
+    # first try
+    print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
+    client = move_base_set_goal( human_poses[human_id] )
 
 
     while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
@@ -444,10 +484,6 @@ def hold_moving(cargo_in):
 
     # run_blocking(blocking_call, cargo_in, event)
     #return ("move_to_human", [human_name, human_last_poses[human_id]])
-
-    return_msg = []
-    return_msg.append(human_name)
-    return_msg.append(human_last_poses[human_id])
     
     return ("move_to_human", return_msg )
 
@@ -525,10 +561,11 @@ def resume_state(cargo_in, event_in, event_out):
 
 # ======================================================================================
 
-def final(cargo_in):
+def final(cargo_in, event_in, event_out):
     move_base_cancel_goals()
     return
 def getSP():
+    publish_human_pose()
     sp = ScheduleParams()
     print "CALC COST"
     global factor_walk
@@ -699,7 +736,7 @@ if __name__== "__main__":
         global startFlag
         global my_priority
         global my_deadline
-        global human_pose
+        global human_poses
         global last_exec_state_name
         last_exec_state_name = "None"
         # global human_last_poses
@@ -711,23 +748,23 @@ if __name__== "__main__":
         stri = sys.argv[4]
         rospy.init_node(da_name, anonymous=False)
         print "DA: ",stri
-        sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
-        print "\n\n\nDA.cost: ", sp.cost
-        my_cost = sp.cost
-        my_completion_time = sp.completion_time
-        print ("my_completion_time = ", sp.completion_time) 
+        # sp = json_message_converter.convert_json_to_ros_message('multitasker/ScheduleParams', stri)
+        # print "\n\n\nDA.cost: ", sp.cost
+        # my_cost = sp.cost
+        # my_completion_time = sp.completion_time
+        # print ("my_completion_time = ", sp.completion_time) 
         print ("version = ", version) 
         if version == "fell-0":
 
             human_name = "John"
             room_number = "10"
-            human_id = 0
+            human_id = 2
 
         elif version == "fell-1":
 
             human_name = "Mark"
             room_number = "15"
-            human_id = 1
+            human_id = 3
 
         else:
 
@@ -746,6 +783,7 @@ if __name__== "__main__":
         rospy.sleep(2)
         # wait_for_tiago_init()
 
+        add_marker(human_poses[human_id])
         m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
         m.add_state("Start", start, None)
         m.add_state("suspending", suspending, None)
@@ -761,6 +799,9 @@ if __name__== "__main__":
 
     finally:
         print "ERROR"
+        global human_poses
+        global human_id
+        remove_marker()
         global debugging
         if debugging: 
             f1.close()
