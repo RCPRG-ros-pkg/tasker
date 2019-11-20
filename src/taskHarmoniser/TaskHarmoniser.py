@@ -16,6 +16,7 @@ class TaskHarmoniser():
         self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
+        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlData)
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
@@ -385,6 +386,21 @@ class TaskHarmoniser():
                     cost_file.write(str(c_switch)+"\n")
                     cost_file.write("\tc_wait:"+"\n")
                     cost_file.write(str(c_wait)+"\n")
+
+                    shdl_data = ShdlData()
+                    shdl_data.dac_cost = dac["scheduleParams"].cost
+                    shdl_data.exec_cost = self.execField["scheduleParams"].cost
+                    shdl_data.dac_cc = cc_dac
+                    shdl_data.exec_cc = cc_exec
+                    shdl_data.exec_ccps = ccps_exec
+                    shdl_data.dac_ccps = ccps_dac
+                    shdl_data.switch_cost = c_switch
+                    shdl_data.wait_cost = c_wait
+                    shdl_data.dac_id = dac["da_id"]
+                    shdl_data.exec_id = self.execField["da_id"]
+                    self.sdhl_pub.publish(shdl_data)
+
+
                     if (c_switch < (c_wait - c_wait*0.1)):
                         cost_file.write("\n"+"SWITCH SWITCH SWITCH SWITCH "+"\n")
                         self.updateIrrField(dac,cost_file)

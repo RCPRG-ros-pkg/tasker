@@ -674,8 +674,9 @@ def ptf_suspend_condition(suspend_request):
         for i in range(len(resp.plan.poses)-1):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
-    suspend_response.cost_to_resume = path_distance_approach
+    
     suspend_response.cost_per_sec = 1
+    suspend_response.cost_to_resume = path_distance_approach * suspend_response.cost_per_sec
     return suspend_response 
 
 def ptf_cost_condition(cost_request):
@@ -724,7 +725,8 @@ def ptf_cost_condition(cost_request):
         for i in range(len(resp.plan.poses)-1):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
-    cost_response.cost_to_complete = path_distance_approach
+    cost_per_sec = 1
+    cost_response.cost_to_complete = path_distance_approach * cost_per_sec
     return cost_response 
 # ======================================================================================
 

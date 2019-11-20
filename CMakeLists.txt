@@ -12,6 +12,7 @@ project(multitasker)
     ScheduleParams.msg
     Status.msg
     RobotResource.msg
+    ShdlData.msg
   #  MyMessage2.msg
   )
 

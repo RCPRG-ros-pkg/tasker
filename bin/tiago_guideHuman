@@ -330,9 +330,9 @@ factor_stand = [0,0]
 global factor_sit
 factor_sit = [0,0]
 # walk factor for human 0
-factor_walk[0] = 1
+factor_walk[0] = 0.1
 # walk factor for human 1
-factor_walk[1] = 2
+factor_walk[1] = 0.2
 # sit factor for human 0
 factor_sit[0] = 0.1
 # sit factor for human 1
@@ -1003,20 +1003,8 @@ def ptf_suspend_condition(suspend_request):
     ##   TO DO : skalowanie kosztu dla ptf_cost_condition i ptf_suspend_condition
     ####
     #######
-    if human_posture == "walk"
-        cost_per_sec = factor_walk[human_id]
-        cost = path_distance_guide * factor_walk[human_id]
-    if human_posture == "stand"
-        cost_per_sec = factor_stand[human_id]
-        cost = path_distance_approach*factor_stand[human_id] + path_distance_guide * factor_walk[human_id]
-    if human_posture == "sit"
-        cost_per_sec = factor_sit[human_id]
-        cost = path_distance_approach*factor_sit[human_id] + path_distance_guide * factor_walk[human_id]
-    if human_posture == "ZERO"
-        cost_per_sec = 0
-        cost = 0
 
-    suspend_response.cost_to_resume = path_distance_approach
+    suspend_response.cost_to_resume = path_distance_approach * suspend_response.cost_per_sec
     return suspend_response 
 
 def ptf_cost_condition(cost_request):
@@ -1064,7 +1052,16 @@ def ptf_cost_condition(cost_request):
         for i in range(len(resp.plan.poses)-1):
             # print "POSE: ",resp.plan.poses[i]
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
-    cost_response.cost_to_complete = path_distance_approach
+    if human_posture == "walk":
+        cost_per_sec = factor_walk[human_id]
+    if human_posture == "stand":
+        cost_per_sec = factor_stand[human_id]
+    if human_posture == "sit":
+        cost_per_sec = factor_sit[human_id]
+    if human_posture == "ZERO":
+        cost_per_sec = 0
+
+    cost_response.cost_to_complete = path_distance_approach * cost_per_sec
     return cost_response 
 # ======================================================================================
 
