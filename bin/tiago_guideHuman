@@ -632,6 +632,7 @@ def guide_human(cargo_in, event_in, event_out):
         pitch *= (180.0 / math.pi)
         yaw   *= (180.0 / math.pi)
         human_last_pose_temp = [trans[0], trans[1], trans[2], roll, pitch, yaw]
+        human_last_poses[human_id] = human_last_pose_temp
         print ( "\t human_last_pose: " + str(human_last_pose_temp) )
 
         if event_in.isSet():

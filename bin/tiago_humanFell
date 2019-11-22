@@ -259,7 +259,7 @@ pose:
 '''
 
 #human_pose = [+3.2205, +1.0311, +0.0000, +0.0000, +0.0000, -101.8592]
-human_pose = [2.7, 0, +0.0000, +0.0000, +0.0000, -101.8592]
+human_pose = [3, 0.7, +0.0000, +0.0000, +0.0000, -101.8592]
 human_poses.append(human_pose)
 
 # dest
@@ -740,6 +740,8 @@ if __name__== "__main__":
         global my_deadline
         global human_poses
         global last_exec_state_name
+        global marker
+        marker = Marker()
         last_exec_state_name = "None"
         # global human_last_poses
         global human_id
@@ -803,7 +805,8 @@ if __name__== "__main__":
         print "ERROR"
         global human_poses
         global human_id
-        remove_marker()
+        if marker.header.frame_id != "":
+            remove_marker()
         global debugging
         if debugging: 
             f1.close()

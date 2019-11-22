@@ -228,12 +228,12 @@ class TaskHarmoniser():
         self.lock.release()
         # print("\nSCHEDULED\n")
     def filterDA_GH(self, DA):
-        if DA[1]["da_type"] == "tiago_guideHuman":
+        if DA[1]["da_type"] == "tiago_guideHuman" and DA[1]["scheduleParams"].cost != -1:
             return True
         else:
             return False
     def filterDA_HF(self, DA):
-        if DA[1]["da_type"] == "tiago_humanFell":
+        if DA[1]["da_type"] == "tiago_humanFell" and DA[1]["scheduleParams"].cost != -1:
             return True
         else:
             return False
@@ -277,9 +277,9 @@ class TaskHarmoniser():
             # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
             # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
             q_GH = OrderedDict(sorted(DAset_GH, 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=True))
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
             q_HF = OrderedDict(sorted(DAset_HF, 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=True))
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
             if debug == True:
                 cost_file.write("\n"+"Q:\n")
                 cost_file.write(str(self.queue)+"\n")
