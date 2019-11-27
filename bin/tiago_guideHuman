@@ -406,18 +406,27 @@ def move_to_human(cargo_in, event_in, event_out):
     global human_poses
     global human_id
     global return_msg
+    goal = human_poses[human_id]
+    goal[0] = human_poses[human_id][0] + 0.3
+    goal[1] = human_poses[human_id][1] + 0.3
+    goal[2] = human_poses[human_id][2]
+    goal[3] = human_poses[human_id][3]
+    goal[4] = human_poses[human_id][4]
+    goal[5] = human_poses[human_id][5]
+
 
     if ( cargo_in[1] != None ):
 
         # not the first try
         print ( "\t NOT_1st \t human_id: " + str(human_id) + "\t cargo_in[0]: " + str(cargo_in[0]) + "\n \t \t \t \t \t cargo_in[0][1]: " + str(cargo_in[0][1]) + "\n \t \t \t \t \t cargo_in[1]: " + str(cargo_in[1]) + "\n" )
-        client = move_base_set_goal(cargo_in[1])
+        client = move_base_set_goal(goal)
 
     else:
 
         # first try
         print ( "\t     1st \t human_id: " + str(human_id) + "\t pose hard-coded: " + str(human_poses[human_id]) )
-        client = move_base_set_goal( human_poses[human_id] )
+
+        client = move_base_set_goal( goal )
 
 
     while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
@@ -835,37 +844,50 @@ def getSP():
     sp = ScheduleParams()
     print "CALC COST"
     global human_posture
+    global human_id
     global factor_walk
     global factor_stand
     global factor_sit
+    global listener
+    global human_last_poses
+
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
     ros_time = rospy.Time()
-    trans = []
+    robot_trans = []
+    human_trans = []
+    robot_rot = []
+    human_rot = []
     rate = rospy.Rate(5.0)
     while not rospy.is_shutdown():
+        print "in while"
         try:
             listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
-            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
-            if len(trans) != 0:
+            (robot_trans,robot_rot) = listener.lookupTransform('/map', '/base_link', ros_time)
+            
+            actor_frame = "/actor_"+str(human_id)
+            listener.waitForTransform('/map', actor_frame, ros_time, rospy.Duration(8.0))
+            (human_trans,human_rot) = listener.lookupTransform('/map', actor_frame, ros_time)
+            if len(robot_trans) != 0 and len(human_trans) != 0:
                 break
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             rate.sleep()
             continue
-
+    human_poses[human_id] = [human_trans[0],human_trans[1],0, human_rot[0], human_rot[1], human_rot[2]]
+    human_last_poses[human_id] = human_poses[human_id]
     path_distance = 0
     req_path.start.header.frame_id = "map"
-    req_path.start.pose.position.x = trans[0]
-    req_path.start.pose.position.y = trans[1]
-    req_path.start.pose.position.z = trans[2]
-    req_path.start.pose.orientation.x = rot[0]
-    req_path.start.pose.orientation.y = rot[1]
-    req_path.start.pose.orientation.z = rot[2]
-    req_path.start.pose.orientation.w = rot[3]
+    req_path.start.pose.position.x = robot_trans[0]
+    req_path.start.pose.position.y = robot_trans[1]
+    req_path.start.pose.position.z = robot_trans[2]
+    req_path.start.pose.orientation.x = robot_rot[0]
+    req_path.start.pose.orientation.y = robot_rot[1]
+    req_path.start.pose.orientation.z = robot_rot[2]
+    req_path.start.pose.orientation.w = robot_rot[3]
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_last_poses[human_id][0]
-    req_path.goal.pose.position.y = human_last_poses[human_id][1]
-    req_path.goal.pose.position.z = human_last_poses[human_id][2]
+    req_path.goal.pose.position.x = human_trans[0]
+    req_path.goal.pose.position.y = human_trans[1]
+    req_path.goal.pose.position.z = human_trans[2]
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -879,13 +901,13 @@ def getSP():
             path_distance_approach += math.sqrt(math.pow((resp.plan.poses[i+1].pose.position.x - resp.plan.poses[i].pose.position.x),2) + pow((resp.plan.poses[i+1].pose.position.y - resp.plan.poses[i].pose.position.y), 2))
     
     req_path.start.header.frame_id = "map"
-    req_path.start.pose.position.x = human_last_poses[human_id][0]
-    req_path.start.pose.position.y = human_last_poses[human_id][1]
-    req_path.start.pose.position.z = human_last_poses[human_id][2]
-    req_path.start.pose.orientation.x = human_last_poses[human_id][0]
-    req_path.start.pose.orientation.y = human_last_poses[human_id][1]
-    req_path.start.pose.orientation.z = human_last_poses[human_id][2]
-    req_path.start.pose.orientation.w = human_last_poses[human_id][3]
+    req_path.start.pose.position.x = human_trans[0]
+    req_path.start.pose.position.y = human_trans[1]
+    req_path.start.pose.position.z = human_trans[2]
+    req_path.start.pose.orientation.x = human_rot[0]
+    req_path.start.pose.orientation.y = human_rot[1]
+    req_path.start.pose.orientation.z = human_rot[2]
+    req_path.start.pose.orientation.w = human_rot[3]
     req_path.goal.header.frame_id = "map"
     req_path.goal.pose.position.x = human_dests[human_id][0]
     req_path.goal.pose.position.y = human_dests[human_id][1]
@@ -951,6 +973,10 @@ def ptf_suspend_condition(suspend_request):
     global human_posture
     global last_exec_state_name
     global human_id
+    robot_trans = []
+    human_trans = []
+    robot_rot = []
+    human_rot = []
     suspend_response = SuspendConditionsResponse()
     suspend_strategy = ptf_get_suspend(last_exec_state_name)
     if suspend_strategy == "hold_moving":
@@ -967,9 +993,10 @@ def ptf_suspend_condition(suspend_request):
     rate = rospy.Rate(5.0)
     while not rospy.is_shutdown():
         try:
-            listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
-            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
-            if len(trans) != 0:
+            actor_frame = "/actor_"+str(human_id)
+            listener.waitForTransform('/map', actor_frame, ros_time, rospy.Duration(8.0))
+            (human_trans,human_rot) = listener.lookupTransform('/map', actor_frame, ros_time)
+            if len(human_trans) != 0:
                 break
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             rate.sleep()
@@ -983,9 +1010,9 @@ def ptf_suspend_condition(suspend_request):
     req_path.start.pose.orientation.z = 0
     req_path.start.pose.orientation.w = 0
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_last_poses[human_id][0]
-    req_path.goal.pose.position.y = human_last_poses[human_id][1]
-    req_path.goal.pose.position.z = human_last_poses[human_id][2]
+    req_path.goal.pose.position.x = human_trans[0]
+    req_path.goal.pose.position.y = human_trans[1]
+    req_path.goal.pose.position.z = 0
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -1012,6 +1039,10 @@ def ptf_cost_condition(cost_request):
     global human_posture
     global last_exec_state_name
     global human_id
+    robot_trans = []
+    human_trans = []
+    robot_rot = []
+    human_rot = []
     cost_response = CostConditionsResponse()
     ##
     # plan to get cost from final state given in request to the state required by this DA 
@@ -1023,9 +1054,10 @@ def ptf_cost_condition(cost_request):
     rate = rospy.Rate(5.0)
     while not rospy.is_shutdown():
         try:
-            listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
-            (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
-            if len(trans) != 0:
+            actor_frame = "/actor_"+str(human_id)
+            listener.waitForTransform('/map', actor_frame, ros_time, rospy.Duration(8.0))
+            (human_trans,human_rot) = listener.lookupTransform('/map', actor_frame, ros_time)
+            if len(human_trans) != 0:
                 break
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             rate.sleep()
@@ -1039,9 +1071,9 @@ def ptf_cost_condition(cost_request):
     req_path.start.pose.orientation.z = 0
     req_path.start.pose.orientation.w = 0
     req_path.goal.header.frame_id = "map"
-    req_path.goal.pose.position.x = human_last_poses[human_id][0]
-    req_path.goal.pose.position.y = human_last_poses[human_id][1]
-    req_path.goal.pose.position.z = human_last_poses[human_id][2]
+    req_path.goal.pose.position.x = human_trans[0]
+    req_path.goal.pose.position.y = human_trans[1]
+    req_path.goal.pose.position.z = 0
     req_path.goal.pose.orientation.x = 0
     req_path.goal.pose.orientation.y = 0
     req_path.goal.pose.orientation.z = 0
@@ -1079,6 +1111,7 @@ if __name__== "__main__":
         last_exec_state_name = "None"
         # global human_last_poses
         global human_id
+        global listener
         version = sys.argv[1]
         da_name = sys.argv[2]
         sp = ScheduleParams()
