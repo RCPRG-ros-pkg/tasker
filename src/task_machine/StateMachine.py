@@ -121,6 +121,7 @@ def run_blocking(handler, arguments = None, state_event = None):
 class StateMachine:
     def __init__(self, file, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition):
         self.startFlag = False
+        self.terminateFlag = False
         self.isInterrupting = False
         self.da_ID = da_ID
         self.isInterrupting = isInterrupting
@@ -170,6 +171,11 @@ class StateMachine:
             self.print_log.write("UPDATEING STATUS params of: "+str(self.da_ID)+"\n"+str(my_status.schedule_params)+"\n")
         self.pub_status.publish(my_status) 
         # self.print_log.write("STATUS was sent"+"\n")
+
+    def terminate(self):
+        self.terminateFlag = True
+        if debug:
+            self.print_log.write("Terminate Flag is set"+"\n")
 
     def onHold(self, param):
         global debug
@@ -415,6 +421,8 @@ class StateMachine:
                 if self.startFlag:
                     break 
                 r.sleep()
+            if self.terminateFlag:
+                return
             start_srv.shutdown()
 
             self.res_srv = None
@@ -457,6 +465,8 @@ class StateMachine:
                         self.res_srv = rospy.Service(resume_srv_name, StartTask, self.onResume)
                         self.suspend_srv.shutdown()
                         self.susp_cond_srv.shutdown()
+                    if self.terminateFlag:
+                        return
                 if self.task_state == 5:
                     self.res_srv.shutdown()
                     self.res_srv = None

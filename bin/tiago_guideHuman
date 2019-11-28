@@ -39,6 +39,7 @@ global human_id
 global human_posture
 global return_msg
 global marker_poses
+global DA_fsm
 human_posture = "stand"
 return_msg = []
 startFlag = False
@@ -850,6 +851,7 @@ def getSP():
     global factor_sit
     global listener
     global human_last_poses
+    global DA_fsm
 
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
@@ -939,6 +941,11 @@ def getSP():
     sp.cost = cost
     sp.completion_time = path_distance_approach + path_distance_guide
     sp.final_resource_state.robot_position = req_path.goal.pose.position
+    if path_distance_guide < 2:
+        print "Human came himself to his destination!"
+        print "Aborting task"
+        DA_fsm.terminate()
+
     return sp
 
 def ptf_update_task(state_machine,TH_data):
@@ -1112,6 +1119,7 @@ if __name__== "__main__":
         # global human_last_poses
         global human_id
         global listener
+        global DA_fsm
         version = sys.argv[1]
         da_name = sys.argv[2]
         sp = ScheduleParams()
@@ -1155,20 +1163,20 @@ if __name__== "__main__":
         # wait_for_tiago_init()
         add_marker(marker_poses[human_id])
 
-        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
-        m.add_state("Start", start, None)
-        m.add_state("suspending", suspending, None)
-        m.add_state("move_to_human", move_to_human, None)
-        m.add_state("hold_moving", hold_moving, None)
-        m.add_state("greet", greet, None)
-        m.add_state("hold_greet", hold_greet, None)
-        m.add_state("guide_human", guide_human, None)
-        m.add_state("hold_guide", hold_guide, None)
-        m.add_state("goodbye_human", goodbye_human, None)
-        #m.add_state("go_to_dock", go_to_dock, None) # for testing
-        m.add_state("final", final, end_state=True)
-        m.set_start("Start")
-        m.run("Python is great")
+        DA_fsm = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
+        DA_fsm.add_state("Start", start, None)
+        DA_fsm.add_state("suspending", suspending, None)
+        DA_fsm.add_state("move_to_human", move_to_human, None)
+        DA_fsm.add_state("hold_moving", hold_moving, None)
+        DA_fsm.add_state("greet", greet, None)
+        DA_fsm.add_state("hold_greet", hold_greet, None)
+        DA_fsm.add_state("guide_human", guide_human, None)
+        DA_fsm.add_state("hold_guide", hold_guide, None)
+        DA_fsm.add_state("goodbye_human", goodbye_human, None)
+        #DA_fsm.add_state("go_to_dock", go_to_dock, None) # for testing
+        DA_fsm.add_state("final", final, end_state=True)
+        DA_fsm.set_start("Start")
+        DA_fsm.run("Python is great")
         #m.run("Python is difficult")
         #m.run("Perl is ugly")
 
