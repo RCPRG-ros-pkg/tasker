@@ -16,7 +16,7 @@ class TaskHarmoniser():
         self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
-        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlData)
+        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
@@ -250,6 +250,12 @@ class TaskHarmoniser():
                 self.execField = {}
             else:
                 self.execField["priority"] = self.execField["scheduleParams"].cost
+        if self.isInterrupting():
+            irr_da_name = "/"+self.interruptField["da_name"]
+            # print("checking  EXEC node: ", exec_da_name)
+            if not rosnode.rosnode_ping(irr_da_name, 1):
+                print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
+                self.interruptField = {}
 
         for da in self.queue.items():
             if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
@@ -387,17 +393,18 @@ class TaskHarmoniser():
                     cost_file.write("\tc_wait:"+"\n")
                     cost_file.write(str(c_wait)+"\n")
 
-                    shdl_data = ShdlData()
-                    shdl_data.dac_cost = dac["scheduleParams"].cost
-                    shdl_data.exec_cost = self.execField["scheduleParams"].cost
-                    shdl_data.dac_cc = cc_dac
-                    shdl_data.exec_cc = cc_exec
-                    shdl_data.exec_ccps = ccps_exec
-                    shdl_data.dac_ccps = ccps_dac
-                    shdl_data.switch_cost = c_switch
-                    shdl_data.wait_cost = c_wait
-                    shdl_data.dac_id = dac["da_id"]
-                    shdl_data.exec_id = self.execField["da_id"]
+                    shdl_data = ShdlDataStamped()
+                    shdl_data.header.stamp = rospy.Time.now()
+                    shdl_data.data.dac_cost = dac["scheduleParams"].cost
+                    shdl_data.data.exec_cost = self.execField["scheduleParams"].cost
+                    shdl_data.data.dac_cc = cc_dac
+                    shdl_data.data.exec_cc = cc_exec
+                    shdl_data.data.exec_ccps = ccps_exec
+                    shdl_data.data.dac_ccps = ccps_dac
+                    shdl_data.data.switch_cost = c_switch
+                    shdl_data.data.wait_cost = c_wait
+                    shdl_data.data.dac_id = dac["da_id"]
+                    shdl_data.data.exec_id = self.execField["da_id"]
                     self.sdhl_pub.publish(shdl_data)
 
 

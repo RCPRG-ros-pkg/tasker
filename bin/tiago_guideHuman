@@ -331,15 +331,15 @@ factor_stand = [0,0]
 global factor_sit
 factor_sit = [0,0]
 # walk factor for human 0
-factor_walk[0] = 0.1
+factor_walk[0] = 0.15
 # walk factor for human 1
 factor_walk[1] = 0.2
 # sit factor for human 0
-factor_sit[0] = 0.1
+factor_sit[0] = 0.3
 # sit factor for human 1
-factor_sit[1] = 0.1
+factor_sit[1] = 0.3
 # stand factor for human 0
-factor_stand[0] = 0.1
+factor_stand[0] = 0.15
 # stand factor for human 1
 factor_stand[1] = 0.2
 global marker_pose_list

@@ -34,6 +34,7 @@ global listener
 global human_id
 global human_posture
 global return_msg
+global fsm_DA
 human_posture = "stand"
 return_msg = []
 startFlag = False
@@ -259,7 +260,7 @@ pose:
 '''
 
 #human_pose = [+3.2205, +1.0311, +0.0000, +0.0000, +0.0000, -101.8592]
-human_pose = [3, 0.7, +0.0000, +0.0000, +0.0000, -101.8592]
+human_pose = [3.97165822983, 4.85366201401, +0.0000, +0.0000, +0.0000, -101.8592]
 human_poses.append(human_pose)
 
 # dest
@@ -429,6 +430,7 @@ def start(cargo_in, event_in, event_out):
 
 def move_to_human(cargo_in, event_in, event_out):
     global last_exec_state_name
+    global human_ok
     last_exec_state_name = "move_to_human"
 
     print(str(datetime.datetime.now().time())+"\n"+ "----------"+"\n")
@@ -448,7 +450,7 @@ def move_to_human(cargo_in, event_in, event_out):
     client = move_base_set_goal( human_poses[human_id] )
 
 
-    while ( client.get_state() != ACTION_STATUS_SUCCEEDED ):
+    while ( client.get_state() != ACTION_STATUS_SUCCEEDED):
         
         print( "\t Moving to the human: "+ str( cargo_in[0])+"\n")
         print( "\t Checking if the destination is reached"+"\n")
@@ -456,7 +458,7 @@ def move_to_human(cargo_in, event_in, event_out):
 
         # run_blocking(blocking_call, cargo_in, event)
         
-        if event_in.isSet():
+        if (event_in.isSet() or human_ok==True):
             event_out.set()
             print( ""+"\n")
             print( "set HOLD"+"\n")
@@ -465,7 +467,6 @@ def move_to_human(cargo_in, event_in, event_out):
         
         time.sleep(1)
         i+=1
-
     return ("observe_report", None)
 
 # ======================================================================================
@@ -481,10 +482,12 @@ def hold_moving(cargo_in):
 
     global human_name
     global room_number
+    global human_ok
 
     # run_blocking(blocking_call, cargo_in, event)
     #return ("move_to_human", [human_name, human_last_poses[human_id]])
-    
+    if human_ok:
+        return ("final", None)
     return ("move_to_human", return_msg )
 
 # ======================================================================================
@@ -572,6 +575,8 @@ def getSP():
     global factor_stand
     global factor_sit
     global human_poses
+    global fsm_DA
+    global human_ok
     path_client = rospy.ServiceProxy('/move_base/GlobalPlanner/make_plan', GetPlan)
     req_path = GetPlanRequest()
     ros_time = rospy.Time()
@@ -616,6 +621,9 @@ def getSP():
     sp.cost_per_sec = 1
     sp.completion_time = path_distance_approach
     sp.final_resource_state.robot_position = req_path.goal.pose.position
+    human_ok = rospy.get_param("~human_ok", False)
+    if human_ok:
+        fsm_DA.terminate()
     return sp
 
 def ptf_update_task(state_machine,TH_data):
@@ -741,6 +749,9 @@ if __name__== "__main__":
         global human_poses
         global last_exec_state_name
         global marker
+        global fsm_DA
+        global human_ok
+        human_ok = False
         marker = Marker()
         last_exec_state_name = "None"
         # global human_last_poses
@@ -788,17 +799,17 @@ if __name__== "__main__":
         # wait_for_tiago_init()
 
         add_marker(human_poses[human_id])
-        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
-        m.add_state("Start", start, None)
-        m.add_state("suspending", suspending, None)
-        m.add_state("move_to_human", move_to_human, None)
-        m.add_state("hold_moving", hold_moving, None)
-        m.add_state("observe_report", observe_report, None)
-        #m.add_state("go_to_dock", go_to_dock, None) # for testing
-        m.add_state("final", final, end_state=True)
-        m.set_start("Start")
-        m.run("Python is great")
-        #m.run("Python is difficult")
+        fsm_DA = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
+        fsm_DA.add_state("Start", start, None)
+        fsm_DA.add_state("suspending", suspending, None)
+        fsm_DA.add_state("move_to_human", move_to_human, None)
+        fsm_DA.add_state("hold_moving", hold_moving, None)
+        fsm_DA.add_state("observe_report", observe_report, None)
+        #fsm_DA.add_state("go_to_dock", go_to_dock, None) # for testing
+        fsm_DA.add_state("final", final, end_state=True)
+        fsm_DA.set_start("Start")
+        fsm_DA.run("Python is great")
+        #fsm_DA.run("Python is difficult")
         #m.run("Perl is ugly")
 
     finally:
