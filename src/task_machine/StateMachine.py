@@ -503,7 +503,7 @@ class StateMachine:
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
                     break
-                time.sleep(10)
+                time.sleep(2)
         finally:
                 global debug
                 if debug:
