@@ -306,6 +306,7 @@ class TaskHarmoniser():
             if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
                 cost_file.write("\n"+"No candidate"+"\n")
                 print "No candidate"
+                self.lock.release()
                 return
             dac = {}
             if self.isExecuting() and not self.isInterrupting():
@@ -464,10 +465,8 @@ class TaskHarmoniser():
             trig = TriggerRequest()
             resp = hold_srv(trig)
             print("SEND SUSPEND to commanding: ", commanding["da_id"])
-            i = 0
-            while i < 1:
-                i = i+1
-                time.sleep(1)
+            print("\nSWITCHING: waiting for EXEC startTask\n")
+            rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/startTask')
         else:
             self.lock.release()
         self.lock.acquire()

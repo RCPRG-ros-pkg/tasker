@@ -102,7 +102,7 @@ def run_blocking(handler, arguments = None, state_event = None):
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "PID: "+ str( p.pid)+"\n")
         self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "new thread is alive: "+ str(p.is_alive()) +"\n")
     while (p.is_alive()):
-        time.sleep(0.1)
+        rospy.sleep(0.1)
         if state_event.isSet():
             p.terminate()
             if debug:
@@ -183,13 +183,13 @@ class StateMachine:
         self.task_state = 2 # Holding
         # self.q.put(self.task_state)
         self.fsm_stop_event.set()
-        time.sleep(0.1)
+        rospy.sleep(0.1)
         while True:
             if self.current_state_m_thread.is_alive():
                 if debug:
                     self.print_log.write("onHold waiting for fsm thread"+"\n")
                 # self.current_state_m_thread.join(timeout=1.0)
-                time.sleep(0.1)
+                rospy.sleep(0.1)
                 break # watchdog process daemon gets terminated
         # self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "onHold waiting for resume"+"\n")
         # # self.handlers[self.current_state.upper()][1]("blah")
@@ -204,7 +204,7 @@ class StateMachine:
             self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "RESUME"+"\n")
         self.task_state = 5 # Resuming
         self.onResumeData = param.params
-        time.sleep(0.1)  
+        rospy.sleep(0.1)  
         return StartTaskResponse()
         # self.current_state_m_thread.join()
     def getHoldConditions(self, param):
@@ -324,7 +324,7 @@ class StateMachine:
                         while thread.is_alive():
                             if debug:
                                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM waits for current state to terminate"+"\n")
-                            time.sleep(1)
+                            rospy.sleep(1)
                         # if the state set its own hold event, it wants to run a hold state
                         if state_stopped.isSet():
                             (newState, cargo_out) = thread.join()
@@ -343,6 +343,7 @@ class StateMachine:
                             (self.resumeState, self.resumeData) = self.handlers[self.current_state.upper()][0](cargo_in=cargo_out)
                             if debug:
                                 self.print_log.write("\n"+str(datetime.datetime.now().time())+"\n"+ "FSM FINISHED newState as a hold state"+"\n")
+                            print "FSM_holded"
                             FSM_holded = True 
                             # update data in current_state topic
                             self.exec_fsm_state = 3
@@ -366,7 +367,7 @@ class StateMachine:
                             
 
                     
-                    time.sleep(0.1)
+                    rospy.sleep(0.1)
                 self.print_log.write( "ev2: "+ str(event_in.isSet())+"\n")
                 # the state set the event and the hold state was performed
                 if state_stop_event.isSet() and FSM_holded:
@@ -503,7 +504,7 @@ class StateMachine:
                     self.current_state_m_thread.join()
                     self.fsm_stop_event.clear()
                     break
-                time.sleep(2)
+                rospy.sleep(2)
         finally:
                 global debug
                 if debug:

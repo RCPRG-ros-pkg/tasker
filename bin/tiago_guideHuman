@@ -445,7 +445,7 @@ def move_to_human(cargo_in, event_in, event_out):
             print( ""+"\n")
             return ("suspending", "move_to_human")
         
-        time.sleep(1)
+        rospy.sleep(1)
         i+=1
 
     say = ""
@@ -466,7 +466,7 @@ def hold_moving(cargo_in):
     print("\t args: "+ str( cargo_in)+"\n")
 
     move_base_cancel_goals()
-
+    rospy.sleep(2)
     global human_name
     global room_number
 
@@ -502,7 +502,7 @@ def greet(cargo_in, event_in, event_out):
             print( ""+"\n")
             return ("suspending", "greet")
         i+=1
-        time.sleep(1)
+        rospy.sleep(1)
 
     return ("guide_human", room_number)
 
@@ -653,7 +653,7 @@ def guide_human(cargo_in, event_in, event_out):
             return ("suspending", "guide_human")
 
         i+=1
-        time.sleep(1)
+        rospy.sleep(1)
 
     return ("goodbye_human", None)
 
@@ -701,7 +701,7 @@ def goodbye_human(cargo_in, event_in, event_out):
         print( "\t HOLD IS UNAVAILABLE"+"\n")
 
         i+=1
-        time.sleep(1)
+        rospy.sleep(1)
     human_posture = "ZERO"
     print( "\t WILL GO_TO_DOCK" + "\n")
 
@@ -734,7 +734,7 @@ def go_to_dock(cargo_in, event_in, event_out):
            print( ""+"\n")
            return ("suspending", "go_to_dock")
        i+=1
-       time.sleep(1)
+       rospy.sleep(1)
 
     return ("final", None) 
 
@@ -765,7 +765,6 @@ def suspending(cargo_in):
         print("\t args: "+ str( cargo_in)+"\n")
 
         move_base_cancel_goals()
-
 
         # run_blocking(blocking_call, cargo_in, event)
         #return ("move_to_human", [human_name, human_last_poses[human_id]])
@@ -1148,7 +1147,7 @@ if __name__== "__main__":
         else:
 
             print('\t WRONG da_name...')
-            time.sleep(30)
+            rospy.sleep(3)
         f_name_1 = "./blockin_log"+version
         f_name_2 = "./state_m_log"+version
         f1=open(f_name_1, 'w+')

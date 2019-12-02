@@ -45,7 +45,7 @@ def scheduler():
 		print "\n SCHEDULING \n"
 		th.schedule_new(cost_file)
 		print "\n SCHEDULED \n"
-		time.sleep(2)
+		rospy.sleep(2)
 		if _FINISH:
 			th.sendIndicator()
 			cost_file.close()

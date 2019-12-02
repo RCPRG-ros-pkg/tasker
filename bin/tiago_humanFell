@@ -465,7 +465,7 @@ def move_to_human(cargo_in, event_in, event_out):
             print( ""+"\n")
             return ("suspending", "move_to_human")
         
-        time.sleep(1)
+        rospy.sleep(1)
         i+=1
     return ("observe_report", None)
 
@@ -784,7 +784,7 @@ if __name__== "__main__":
         else:
 
             print('\t WRONG da_name...')
-            time.sleep(30)
+            rospy.sleep(3)
         f_name_1 = "./blockin_log"+version
         f_name_2 = "./state_m_log"+version
         f1=open(f_name_1, 'w+')
