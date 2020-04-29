@@ -14,6 +14,7 @@ project(multitasker)
     RobotResource.msg
     ShdlData.msg
     ShdlDataStamped.msg
+    CMD.msg
   #  MyMessage2.msg
   )
 
