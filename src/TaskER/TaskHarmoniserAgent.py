@@ -31,10 +31,9 @@ class TaskHarmoniserAgent():
         self.updateDAState(data.da_id, data.da_state)
         print("\nUPDATED SP\n")
 
-    def initialiseDA(self, executable, args):
+    def initialiseDA(self, executable, da_type, args):
         da_id = self.getNextID()
-        da_name = "DA_"+da_id
-        da_type = task_spec.task_name
+        da_name = "DA_"+str(da_id)
         args.append( 'da_id' )
         args.append( da_id )
         args.append( 'da_name' )
@@ -46,7 +45,6 @@ class TaskHarmoniserAgent():
         run_cmd.append(executable)
         run_cmd.extend(args)
         package = 'multitasker' 
-        executable = application
         subprocess.Popen(run_cmd)
 
     def addDA(self, added, da_name, da_type, da_state):
