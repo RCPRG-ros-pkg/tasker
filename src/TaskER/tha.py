@@ -16,13 +16,7 @@ switcher = threading.Thread
 th = TaskHarmoniser
 
 
-def updateSP(data):
-	global th
-	print("\nUPDATE SP\n")
-	print "updateSP: ",data.da_id, "SP: \n", data.schedule_params
-	th.updateScheduleParams(data.da_id, data.schedule_params)
-	print("\nUPDATED SP\n")
-	
+
 def initDA(data):
 	global th
 	print("GOT REQUEST")
@@ -80,7 +74,6 @@ if __name__== "__main__":
 	scheduler.start()
 	switcher = threading.Thread(target = switcher)
 	switcher.start()
-	sub_status = rospy.Subscriber("TH/statuses", Status, updateSP)
 	s = rospy.Service("TH/new_task", TaskRequest, initDA)
 
 	rospy.spin()

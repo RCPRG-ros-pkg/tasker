@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from multitasker.msg import *
-from multitasker.srv import *
+from TaskER.msg import *
+from TaskER.srv import *
 import threading
 import time
 import subprocess
@@ -8,33 +8,56 @@ import rospy
 from std_srvs.srv import Trigger, TriggerRequest
 import rosnode
 
-class TaskHarmoniser():
+class TaskHarmoniserAgent():
     def __init__(self):
 
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
-        self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
+        self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'da_state': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
         self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
+        self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
-    def initialiseDA(self, application, version, da_id, da_name, init_params):
+        self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateSP)
+
+    def updateSP(data):
+        global th
+        print("\nUPDATE SP\n")
+        print "updateSP: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params
+        self.updateScheduleParams(data.da_id, data.schedule_params)
+        self.updateDAState(data.da_id, data.da_state)
+        print("\nUPDATED SP\n")
+
+    def initialiseDA(self, executable, args):
+        da_id = self.getNextID()
+        da_name = "DA_"+da_id
+        da_type = task_spec.task_name
+        args.append( 'da_id' )
+        args.append( da_id )
+        args.append( 'da_name' )
+        args.append( da_name )
+        args.append( 'da_type' )
+        args.append( da_type )
+        print 'args:', args
+        run_cmd = []
+        run_cmd.append(executable)
+        run_cmd.extend(args)
         package = 'multitasker' 
         executable = application
-        # cmd = "rosrun "+ package + " "+executable+ " "+da_name+ " "+str(da_id)+" "+str(init_params)
-        rospy.set_param('/'+da_name+'/fsm_condition/startTask', False)
-        subprocess.Popen(['rosrun', package, executable, version, da_name, str(da_id), init_params])
-    def addDA(self, added, da_name, da_type):
+        subprocess.Popen(run_cmd)
+
+    def addDA(self, added, da_name, da_type, da_state):
         # type: (int) -> None
         self.lock.acquire()        
-        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
+        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'da_state': "init",  'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
         self.queue[added] = da
         self.lock.release()
-    def updateDA(self, da_id, da_name, da_type, priority, scheduleParams):
+    def updateDA(self, da_id, da_name, da_type, da_state, priority, scheduleParams):
         # type: (int, int, ScheduleParams) -> None
-        da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'priority': priority, 'ping_count': 0, 'scheduleParams': scheduleParams}
+        da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'da_state': da_state, 'priority': priority, 'ping_count': 0, 'scheduleParams': scheduleParams}
     def updateDA(self, da):
         # type: (dict) -> None
         self.queue[da["da_id"]] = da
@@ -74,6 +97,22 @@ class TaskHarmoniser():
                 return
         if self.queue.has_key(da_id):
             self.queue[da_id]["scheduleParams"] = scheduleParams
+        self.lock.release()
+    def updateDAState(self, da_id, da_state):
+        # type: (int, ScheduleParams) -> None
+        self.lock.acquire()
+        if self.isExecuting():
+            if self.execField["da_id"] == da_id:
+                self.execField["da_state"] = da_state
+                self.lock.release()
+                return
+        if self.isInterrupting():
+            if self.interruptField["da_id"] == da_id:
+                self.interruptField["da_state"] = da_state
+                self.lock.release()
+                return
+        if self.queue.has_key(da_id):
+            self.queue[da_id]["da_state"] = da_state
         self.lock.release()
     def makeInterrupting(self, da_id):
         # type: (int) -> None
@@ -195,8 +234,8 @@ class TaskHarmoniser():
                 highest_da = next(iter(q.items()))[1]
                 if self.execField["priority"] < highest_da["priority"]:
                     print "WAITING FOR CONDITIONS"
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
+                    rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions')
+                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
                     trig = SuspendConditionsRequest()
                     resp = get_susp_cond(highest_da["scheduleParams"].final_resource_state)
                     print "HAVE CONDITIONS"
@@ -353,8 +392,8 @@ class TaskHarmoniser():
                         self.execField = {}
                         self.lock.release()
                         return
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions')
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/get_suspend_conditions', SuspendConditions)
+                    rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions')
+                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
                     trig = SuspendConditionsRequest()
                     resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
                     cost_file.write("\n"+"EXEC:"+"\n")
@@ -375,8 +414,8 @@ class TaskHarmoniser():
                             self.removeDA(dac)
                             self.lock.release()
                             return
-                    rospy.wait_for_service('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions')
-                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/multitasking/get_cost_on_conditions', CostConditions)
+                    rospy.wait_for_service('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions')
+                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', CostConditions)
                     trig = CostConditionsRequest()
                     resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
                     cc_dac = resp.cost_to_complete
@@ -459,28 +498,31 @@ class TaskHarmoniser():
             commanding = self.execField
             self.lock.release()
             print("\nSWITCHING: waiting for EXEC hold_now\n")
-            rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/hold_now')
+            if commanding:
+                cmd = CMD(recipient_name = commanding["da_name"], cmd = "susp", data = "spotify")
+                self.cmd_pub.publish(cmd)
+            rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/hold_now')
             print("\nSWITCHING: have hold_now\n")
-            hold_srv = rospy.ServiceProxy('/'+self.execField["da_name"]+'/multitasking/hold_now', Trigger)
+            hold_srv = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/hold_now', Trigger)
             trig = TriggerRequest()
             resp = hold_srv(trig)
             print("SEND SUSPEND to commanding: ", commanding["da_id"])
             print("\nSWITCHING: waiting for EXEC startTask\n")
-            rospy.wait_for_service('/'+self.execField["da_name"]+'/multitasking/startTask')
+            rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/startTask')
         else:
             self.lock.release()
         self.lock.acquire()
         interrupting = self.interruptField
         self.lock.release()
         print("SEND StartTask to initialised: ", interrupting["da_name"])
-        srv_name = "/"+interrupting["da_name"]+"/multitasking/startTask"
+        srv_name = "/"+interrupting["da_name"]+"/TaskER/startTask"
         # print (srv_name)
         print("\nSWITCHING: waiting for QUEUED startTask\n")
         rospy.wait_for_service(srv_name)
         start_srv = rospy.ServiceProxy(srv_name, StartTask)
         start_srv(False, "")
         print("\nSWITCHING: waiting for STARTED hold_now\n")
-        rospy.wait_for_service('/'+interrupting["da_name"]+'/multitasking/hold_now')
+        rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now')
         self.lock.acquire()
         # print("\n Making executing\n")
         self.makeExecuting()
@@ -497,8 +539,8 @@ class TaskHarmoniser():
         # self.facultativeStates = []
         # self.priority = 0
         # self.start_deadline = -1
-        # node_namespace = rospy.get_name() + "/multitasking"
-        # srv_name = rospy.get_name()+'/multitasking/get_hold_conditions'
+        # node_namespace = rospy.get_name() + "/TaskER"
+        # srv_name = rospy.get_name()+'/TaskER/get_hold_conditions'
         # self.s = rospy.Service(srv_name, HoldConditions, self.getHoldConditions)
         # self.current_state = ''
         # self.task_state = 0 # initialized_not_running
