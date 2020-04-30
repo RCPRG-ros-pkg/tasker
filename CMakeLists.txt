@@ -64,7 +64,7 @@ endif()
 # Catkin package  
   catkin_package(
    INCLUDE_DIRS 
-   LIBRARIES ${PROJECT_NAME}
+   LIBRARIES ${PROJECT_NAME} TaskER
    CATKIN_DEPENDS rospy
    DEPENDS )
 
