@@ -23,7 +23,7 @@ class TaskHarmoniserAgent():
         self.interruptField = {}
         self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateSP)
 
-    def updateSP(data):
+    def updateSP(self, data):
         global th
         print("\nUPDATE SP\n")
         print "updateSP: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params
@@ -35,19 +35,22 @@ class TaskHarmoniserAgent():
         da_id = self.getNextID()
         da_name = "DA_"+str(da_id)
         args.append( 'da_id' )
-        args.append( da_id )
+        args.append( str(da_id) )
         args.append( 'da_name' )
         args.append( da_name )
         args.append( 'da_type' )
         args.append( da_type )
         print 'args:', args
-        run_cmd = []
+        run_cmd = [] 
+        #args = ' '.join(map(str, args))
         run_cmd.append(executable)
         run_cmd.extend(args)
-        package = 'multitasker' 
+        package = 'multitasker'
+        print "cmd: ",run_cmd
         subprocess.Popen(run_cmd)
+        self.addDA(da_id,da_name, da_type, )
 
-    def addDA(self, added, da_name, da_type, da_state):
+    def addDA(self, added, da_name, da_type):
         # type: (int) -> None
         self.lock.acquire()        
         da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'da_state': "init",  'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
@@ -138,6 +141,7 @@ class TaskHarmoniserAgent():
         self.lock.acquire()
         i = 0
         while True:
+            print "queue: ", self.queue
             for key_id in self.queue.items():
                 if self.queue[key_id[0]]["da_id"] == i:
                     i = i + 1
