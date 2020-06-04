@@ -7,6 +7,7 @@ import subprocess
 import rospy
 from std_srvs.srv import Trigger, TriggerRequest
 import rosnode
+import rosservice
 
 class TaskHarmoniserAgent():
     def __init__(self):
@@ -22,7 +23,7 @@ class TaskHarmoniserAgent():
         self.execField = {}
         self.interruptField = {}
         self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateSP)
-
+        self.DA_processes = {}
     def updateSP(self, data):
         global th
         print("\nUPDATE SP\n")
@@ -31,8 +32,7 @@ class TaskHarmoniserAgent():
         self.updateDAState(data.da_id, data.da_state)
         print("\nUPDATED SP\n")
 
-    def initialiseDA(self, executable, da_type, args):
-        da_id = self.getNextID()
+    def initialiseDA(self, executable, da_type,da_id, args):
         da_name = "DA_"+str(da_id)
         args.append( 'da_id' )
         args.append( str(da_id) )
@@ -47,7 +47,9 @@ class TaskHarmoniserAgent():
         run_cmd.extend(args)
         package = 'multitasker'
         print "cmd: ",run_cmd
-        subprocess.Popen(run_cmd)
+        p = subprocess.Popen(run_cmd)
+        row = {'da_id': da_id, 'process': p}
+        self.DA_processes[da_id] = row
         self.addDA(da_id,da_name, da_type, )
 
     def addDA(self, added, da_name, da_type):
@@ -65,6 +67,12 @@ class TaskHarmoniserAgent():
     def removeDA(self, da):
         # type: (dict) -> None
         self.queue.pop(da["da_id"], None)
+        p = self.DA_processes[da["da_id"]]['process']
+        # Wait until process terminates (without using p.wait())
+        while p.poll() is None:
+            # Process hasn't exited yet, let's wait some
+            print("TH waits for DA: "+da["da_id"]+" termination")
+            time.sleep(0.5)
     def updatePriority(self, da_id, priority):
         # type: (int, int) -> None
         self.lock.acquire()
@@ -136,6 +144,11 @@ class TaskHarmoniserAgent():
     def sendIndicator(self):
          # type: () -> None
         self.switchIndicator.set()
+    def getInterruptingAndExecuting(self):
+        return [self.interruptField,self.execField]
+    def getQueue(self):
+        queue = self.queue
+        return queue
     def getNextID(self):
          # type: () -> int8
         self.lock.acquire()
@@ -200,7 +213,29 @@ class TaskHarmoniserAgent():
         self.makeInterrupting(next_da["da_id"])
         if not self.switchIndicator.isSet():
             self.switchIndicator.set()
+    def set_DA_signal(self, da_name, signal, data=[]):
+        print "set_DA_signal: "
+        cmd = CMD(recipient_name = da_name, cmd = signal, data = [])
+        print cmd
+        self.cmd_pub.publish(cmd)
+    def isDAAlive(self, da_name):
+        print("checking DA: "+da_name)
+        if not rosnode.rosnode_ping("/"+da_name, 1):
+                rospy.sleep(0.1)
+                if not rosnode.rosnode_ping("/"+da_name, 1):
+                    print("\n\n\nDA DEAD\n\n\n")
+                    return False
+        print("\n\n\nDA ALIVE\n\n\n")
+        return True
 
+    def hasService(self, srv_name):
+        service_list = rosservice.get_service_list()
+        if srv_name in service_list:
+            print("\n\n\nHAVE SERVICE\n\n\n")
+            return True
+        else:
+            print("\n\n\nLOST SERVICE\n\n\n")
+            return False
     def schedule(self):
 
         # print("\nSCHEDULE\n")
@@ -308,162 +343,170 @@ class TaskHarmoniserAgent():
                 print "NEXT DA"
         print "OUT OUT"
         if len(self.queue) > 0:
-
-            DAset_GH = {}
-            DAset_HF = {}
-            cGH = {}
-            cHF = {}
-            # print "Q:"
-            # print self.queue
-            DAset_GH = filter(self.filterDA_GH, self.queue.items())
-            DAset_HF = filter(self.filterDA_HF, self.queue.items())
-            # print "DAset_GH:"
-            # print DAset_GH
-            # print "DAset_T:"
-            # print DAset_T
-            # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
-            # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
-            q_GH = OrderedDict(sorted(DAset_GH, 
+            ordered_queue = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
-            q_HF = OrderedDict(sorted(DAset_HF, 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
-            if debug == True:
-                cost_file.write("\n"+"Q:\n")
-                cost_file.write(str(self.queue)+"\n")
-            if len(DAset_HF) > 0:
-                # print "q_GH"
-                # print q_GH
-                cHF = next(iter(q_HF.items()))[1]
-                if debug == True:
-                    cost_file.write("\n"+"cHF:"+"\n")
-                    cost_file.write(str(cHF)+"\n")
-                # print "cGH"
-                # print cGH
-            if len(DAset_GH) > 0:
-                cGH = next(iter(q_GH.items()))[1]
-                if debug == True:
-                    cost_file.write("\n"+"cGH:"+"\n")
-                    cost_file.write(str(cGH)+"\n")
-            if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
-                cost_file.write("\n"+"No candidate"+"\n")
-                print "No candidate"
-                self.lock.release()
-                return
-            dac = {}
+            print "OQ:\n", ordered_queue
+            dac = next(iter(ordered_queue.items()))[1]
+            print "dac: ", dac
+            # DAset_GH = {}
+            # DAset_HF = {}
+            # cGH = {}
+            # cHF = {}
+            # # print "Q:"
+            # # print self.queue
+            # DAset_GH = filter(self.filterDA_GH, self.queue.items())
+            # DAset_HF = filter(self.filterDA_HF, self.queue.items())
+            # # print "DAset_GH:"
+            # # print DAset_GH
+            # # print "DAset_T:"
+            # # print DAset_T
+            # # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
+            # # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
+            # q_GH = OrderedDict(sorted(DAset_GH, 
+            #                 key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+            # q_HF = OrderedDict(sorted(DAset_HF, 
+            #                 key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+            # if debug == True:
+            #     cost_file.write("\n"+"Q:\n")
+            #     cost_file.write(str(self.queue)+"\n")
+            # if len(DAset_HF) > 0:
+            #     # print "q_GH"
+            #     # print q_GH
+            #     cHF = next(iter(q_HF.items()))[1]
+            #     if debug == True:
+            #         cost_file.write("\n"+"cHF:"+"\n")
+            #         cost_file.write(str(cHF)+"\n")
+            #     # print "cGH"
+            #     # print cGH
+            # if len(DAset_GH) > 0:
+            #     cGH = next(iter(q_GH.items()))[1]
+            #     if debug == True:
+            #         cost_file.write("\n"+"cGH:"+"\n")
+            #         cost_file.write(str(cGH)+"\n")
+            # if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
+            #     cost_file.write("\n"+"No candidate"+"\n")
+            #     print "No candidate"
+            #     self.lock.release()
+            #     return
+            # dac = {}
             if self.isExecuting() and not self.isInterrupting():
-                if  (self.execField["da_type"] == "tiago_humanFell") and cHF!={}:
-                    dac = cHF
-                    if debug == True:
-                        cost_file.write("\n"+"dac:"+"\n")
-                        cost_file.write(str(dac)+"\n")
-                elif (self.execField["da_type"] == "tiago_humanFell") and cHF=={}:
-                    print "Exec: hF, no hF in queue"
-                    if debug == True:
-                        cost_file.write("\n"+"Exec: hF, no hF in queue"+"\n")
-                elif self.execField["da_type"] == "tiago_guideHuman":
-                    if len(DAset_HF) > 0:
-                        cost_file.write("\n"+"GH executing, there is HF in Q"+"\n")
-                        self.updateIrrField(cHF,cost_file)
-                        self.lock.release()
-                        return
-                    elif len(DAset_GH) > 0:
-                        dac = cGH
-                        if debug == True:
-                            cost_file.write("\n"+"dac:"+"\n")
-                            cost_file.write(str(dac)+"\n")
-                    else:
-                        cost_file.write("\n"+"No candidate"+"\n")
-                        print "No candidate"
-                else:
-                    cost_file.write("\n"+"DA in ExecField has unknown type task"+"\n")
-                if dac == {}:
-                    cost_file.write("\n"+"No candidate"+"\n")
-                    print "No candidate"
-                else:
-                    cost_file.write("\n"+"Exec cost:"+"\n")
-                    cost_file.write("\t"+str(self.execField["scheduleParams"].cost)+"\n")
-                    cost_file.write("DAC cost:"+"\n")
-                    cost_file.write("\t"+str(dac["da_name"])+": "+str(dac["scheduleParams"].cost)+"\n")
-                    # if dac["scheduleParams"].cost < self.execField["scheduleParams"].cost:
-                    cost_file.write("\n"+"Have candidate"+"\n")
-                    cost_file.write("CHECK pair combinations"+"\n")
-                    print "WAITING FOR SUSPEND COST from exec"
-                    exec_da_name = "/"+self.execField["da_name"]
-                    if not rosnode.rosnode_ping(exec_da_name, 1):
-                        print("EXEC FINIIIIIISSSSSHHHHHHEEEEDDDD")
-                        self.execField = {}
-                        self.lock.release()
-                        return
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions')
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
-                    trig = SuspendConditionsRequest()
-                    resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
-                    cost_file.write("\n"+"EXEC:"+"\n")
-                    cc_exec = resp.cost_to_resume
-                    cost_file.write("\tcc:"+"\n")
-                    cost_file.write(str(cc_exec)+"\n")
-                    ccps_exec = resp.cost_per_sec
-                    cost_file.write("\tccps:"+"\n")
-                    cost_file.write(str(ccps_exec)+"\n")
+                if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
+                    self.updateIrrField(dac,cost_file)
+            #     if  (self.execField["da_type"] == "tiago_humanFell") and cHF!={}:
+            #         dac = cHF
+            #         if debug == True:
+            #             cost_file.write("\n"+"dac:"+"\n")
+            #             cost_file.write(str(dac)+"\n")
+            #     elif (self.execField["da_type"] == "tiago_humanFell") and cHF=={}:
+            #         print "Exec: hF, no hF in queue"
+            #         if debug == True:
+            #             cost_file.write("\n"+"Exec: hF, no hF in queue"+"\n")
+            #     elif self.execField["da_type"] == "tiago_guideHuman":
+            #         if len(DAset_HF) > 0:
+            #             cost_file.write("\n"+"GH executing, there is HF in Q"+"\n")
+            #             self.updateIrrField(cHF,cost_file)
+            #             self.lock.release()
+            #             return
+            #         elif len(DAset_GH) > 0:
+            #             dac = cGH
+            #             if debug == True:
+            #                 cost_file.write("\n"+"dac:"+"\n")
+            #                 cost_file.write(str(dac)+"\n")
+            #         else:
+            #             cost_file.write("\n"+"No candidate"+"\n")
+            #             print "No candidate"
+            #     else:
+            #         cost_file.write("\n"+"DA in ExecField has unknown type task"+"\n")
+            #     if dac == {}:
+            #         cost_file.write("\n"+"No candidate"+"\n")
+            #         print "No candidate"
+            #     else:
+            #         cost_file.write("\n"+"Exec cost:"+"\n")
+            #         cost_file.write("\t"+str(self.execField["scheduleParams"].cost)+"\n")
+            #         cost_file.write("DAC cost:"+"\n")
+            #         cost_file.write("\t"+str(dac["da_name"])+": "+str(dac["scheduleParams"].cost)+"\n")
+            #         # if dac["scheduleParams"].cost < self.execField["scheduleParams"].cost:
+            #         cost_file.write("\n"+"Have candidate"+"\n")
+            #         cost_file.write("CHECK pair combinations"+"\n")
+            #         print "WAITING FOR SUSPEND COST from exec"
+            #         exec_da_name = "/"+self.execField["da_name"]
+            #         if not rosnode.rosnode_ping(exec_da_name, 1):
+            #             print("EXEC FINIIIIIISSSSSHHHHHHEEEEDDDD")
+            #             self.execField = {}
+            #             self.lock.release()
+            #             return
+            #         rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions')
+            #         get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
+            #         trig = SuspendConditionsRequest()
+            #         resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
+            #         cost_file.write("\n"+"EXEC:"+"\n")
+            #         cc_exec = resp.cost_to_resume
+            #         cost_file.write("\tcc:"+"\n")
+            #         cost_file.write(str(cc_exec)+"\n")
+            #         ccps_exec = resp.cost_per_sec
+            #         cost_file.write("\tccps:"+"\n")
+            #         cost_file.write(str(ccps_exec)+"\n")
 
-                    print "WAITING FOR COST from candidate"
-                    dac_name = "/"+dac["da_name"]
-                    if not rosnode.rosnode_ping(dac_name, 1):
-                        rospy.sleep(3)
-                        if not rosnode.rosnode_ping(dac_name, 1):
-                            print "REMOVED:"
-                            print dac["da_name"]
-                            self.removeDA(dac)
-                            self.lock.release()
-                            return
-                    rospy.wait_for_service('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions')
-                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', CostConditions)
-                    trig = CostConditionsRequest()
-                    resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
-                    cc_dac = resp.cost_to_complete
-                    cost_file.write("\n"+"DAC:"+"\n")
-                    cost_file.write("\tcc:"+"\n")
-                    cost_file.write(str(cc_dac)+"\n")
-                    ccps_dac = dac["scheduleParams"].cost_per_sec
-                    cost_file.write("\tccps:"+"\n")
-                    cost_file.write(str(ccps_dac)+"\n")
-                    cost_file.write("\n"+"COMBINATION:"+"\n")
-                    c_switch = dac["scheduleParams"].cost + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
-                    c_wait = self.execField["scheduleParams"].cost + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
-                    cost_file.write("\tc_switch:"+"\n")
-                    cost_file.write(str(c_switch)+"\n")
-                    cost_file.write("\tc_wait:"+"\n")
-                    cost_file.write(str(c_wait)+"\n")
+            #         print "WAITING FOR COST from candidate"
+            #         dac_name = "/"+dac["da_name"]
+            #         if not rosnode.rosnode_ping(dac_name, 1):
+            #             rospy.sleep(3)
+            #             if not rosnode.rosnode_ping(dac_name, 1):
+            #                 print "REMOVED:"
+            #                 print dac["da_name"]
+            #                 self.removeDA(dac)
+            #                 self.lock.release()
+            #                 return
+            #         rospy.wait_for_service('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions')
+            #         get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', CostConditions)
+            #         trig = CostConditionsRequest()
+            #         resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
+            #         cc_dac = resp.cost_to_complete
+            #         cost_file.write("\n"+"DAC:"+"\n")
+            #         cost_file.write("\tcc:"+"\n")
+            #         cost_file.write(str(cc_dac)+"\n")
+            #         ccps_dac = dac["scheduleParams"].cost_per_sec
+            #         cost_file.write("\tccps:"+"\n")
+            #         cost_file.write(str(ccps_dac)+"\n")
+            #         cost_file.write("\n"+"COMBINATION:"+"\n")
+            #         c_switch = dac["scheduleParams"].cost + cc_exec + ccps_exec * dac["scheduleParams"].completion_time 
+            #         c_wait = self.execField["scheduleParams"].cost + cc_dac + ccps_dac * self.execField["scheduleParams"].completion_time 
+            #         cost_file.write("\tc_switch:"+"\n")
+            #         cost_file.write(str(c_switch)+"\n")
+            #         cost_file.write("\tc_wait:"+"\n")
+            #         cost_file.write(str(c_wait)+"\n")
 
-                    shdl_data = ShdlDataStamped()
-                    shdl_data.header.stamp = rospy.Time.now()
-                    shdl_data.data.dac_cost = dac["scheduleParams"].cost
-                    shdl_data.data.exec_cost = self.execField["scheduleParams"].cost
-                    shdl_data.data.dac_cc = cc_dac
-                    shdl_data.data.exec_cc = cc_exec
-                    shdl_data.data.exec_ccps = ccps_exec
-                    shdl_data.data.dac_ccps = ccps_dac
-                    shdl_data.data.switch_cost = c_switch
-                    shdl_data.data.wait_cost = c_wait
-                    shdl_data.data.dac_id = dac["da_id"]
-                    shdl_data.data.exec_id = self.execField["da_id"]
-                    self.sdhl_pub.publish(shdl_data)
+            #         shdl_data = ShdlDataStamped()
+            #         shdl_data.header.stamp = rospy.Time.now()
+            #         shdl_data.data.dac_cost = dac["scheduleParams"].cost
+            #         shdl_data.data.exec_cost = self.execField["scheduleParams"].cost
+            #         shdl_data.data.dac_cc = cc_dac
+            #         shdl_data.data.exec_cc = cc_exec
+            #         shdl_data.data.exec_ccps = ccps_exec
+            #         shdl_data.data.dac_ccps = ccps_dac
+            #         shdl_data.data.switch_cost = c_switch
+            #         shdl_data.data.wait_cost = c_wait
+            #         shdl_data.data.dac_id = dac["da_id"]
+            #         shdl_data.data.exec_id = self.execField["da_id"]
+            #         self.sdhl_pub.publish(shdl_data)
 
 
-                    if (c_switch < (c_wait - c_wait*0.1)):
-                        cost_file.write("\n"+"SWITCH SWITCH SWITCH SWITCH "+"\n")
-                        self.updateIrrField(dac,cost_file)
-                    # else:
-                    #     cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
-                    #     print "candidate priority was less then executing task"
+            #         if (c_switch < (c_wait - c_wait*0.1)):
+            #             cost_file.write("\n"+"SWITCH SWITCH SWITCH SWITCH "+"\n")
+            #             self.updateIrrField(dac,cost_file)
+            #         # else:
+            #         #     cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
+            #         #     print "candidate priority was less then executing task"
             elif not self.isExecuting() and not self.isInterrupting():
                 print "No EXEC dynamic agent"
-                if len(DAset_HF) > 0:
-                    print "HF len > 0"
-                    self.updateIrrField(cHF,cost_file)
-                elif len(DAset_GH) > 0:
-                    print "GH len > 0"
-                    self.updateIrrField(cGH,cost_file)
+                # if len(DAset_HF) > 0:
+                #     print "HF len > 0"
+                #     self.updateIrrField(cHF,cost_file)
+                # elif len(DAset_GH) > 0:
+                #     print "GH len > 0"
+                #     self.updateIrrField(cGH,cost_file)
+                if dac != None:
+                    self.updateIrrField(dac,cost_file)
                 else:
                     print "No candidate"
             else:
@@ -500,17 +543,25 @@ class TaskHarmoniserAgent():
             commanding = self.execField
             self.lock.release()
             print("\nSWITCHING: waiting for EXEC hold_now\n")
-            if commanding:
-                cmd = CMD(recipient_name = commanding["da_name"], cmd = "susp", data = "spotify")
-                self.cmd_pub.publish(cmd)
+            
+            self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["executable", "spotify"])
+        
             rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/hold_now')
             print("\nSWITCHING: have hold_now\n")
-            hold_srv = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/hold_now', Trigger)
-            trig = TriggerRequest()
-            resp = hold_srv(trig)
+
             print("SEND SUSPEND to commanding: ", commanding["da_id"])
             print("\nSWITCHING: waiting for EXEC startTask\n")
-            rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/startTask')
+            r = rospy.Rate(10) # 10hz
+            # wait until exec DA terminates or swithes to wait state
+            while not rospy.is_shutdown():
+                wait_flag = (self.isDAAlive(self.execField["da_name"]) and not self.execField["da_state"][0]=="Wait")
+                print "wait_flag = "+ str(wait_flag)
+                print "exe: "+ self.execField["da_name"]
+                print "exe_state: "+ self.execField["da_state"][0]
+                if wait_flag:
+                    r.sleep()
+                else:
+                    break
         else:
             self.lock.release()
         self.lock.acquire()
@@ -521,8 +572,8 @@ class TaskHarmoniserAgent():
         # print (srv_name)
         print("\nSWITCHING: waiting for QUEUED startTask\n")
         rospy.wait_for_service(srv_name)
-        start_srv = rospy.ServiceProxy(srv_name, StartTask)
-        start_srv(False, "")
+        self.set_DA_signal(da_name=interrupting["da_name"], signal = "start", data = [])
+
         print("\nSWITCHING: waiting for STARTED hold_now\n")
         rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now')
         self.lock.acquire()
