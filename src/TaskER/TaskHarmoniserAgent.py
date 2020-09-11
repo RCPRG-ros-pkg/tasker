@@ -29,6 +29,11 @@ class TaskHarmoniserAgent():
         global th
         print("\nUPDATE SP\n")
         print "updateSP: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params
+        if data.da_state == 'END':
+            if self.queue.has_key(data.da_id):
+                self.removeDA(self.queue[data.da_id])
+            else:
+                raise Exception('This DA: <'+data.da_name+'> is not found in THA queue')
         self.updateScheduleParams(data.da_id, data.schedule_params)
         self.updateDAState(data.da_id, data.da_state)
         print("\nUPDATED SP\n")
@@ -67,6 +72,12 @@ class TaskHarmoniserAgent():
         self.queue[da["da_id"]] = da
     def removeDA(self, da):
         # type: (dict) -> None
+        if self.isInterrupting():
+            if self.interruptField["da_id"] == da["da_id"]:
+                self.interruptField = {}
+        if self.isExecuting(): 
+            if self.execField["da_id"] == da["da_id"]:
+                self.execField = {}
         self.queue.pop(da["da_id"], None)
         p = self.DA_processes[da["da_id"]]['process']
         # Wait until process terminates (without using p.wait())
@@ -700,6 +711,11 @@ class TaskHarmoniserAgent():
             # print (srv_name)
             print("\nSWITCHING: waiting for QUEUED startTask\n")
             rospy.wait_for_service(srv_name)
+            print "\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", interrupting["da_state"][0], "> state."
+            while not interrupting["da_state"][0] in ["Wait", "init"]:
+                print "\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", interrupting["da_state"][0], "> state."
+                rospy.sleep(0.5)
+
             if interrupting["da_state"][0]=="Wait":
                 self.set_DA_signal(da_name=interrupting["da_name"], signal = "resume", data = [])
             elif interrupting["da_state"][0]=="init":
