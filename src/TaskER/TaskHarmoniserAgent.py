@@ -349,12 +349,12 @@ class TaskHarmoniserAgent():
         self.lock.release()
         # print("\nSCHEDULED\n")
     def filterDA_GH(self, DA):
-        if DA[1]["da_type"] == "tiago_guideHuman" and DA[1]["scheduleParams"].cost != -1:
+        if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["scheduleParams"].cost != -1:
             return True
         else:
             return False
     def filterDA_HF(self, DA):
-        if DA[1]["da_type"] == "tiago_humanFell" and DA[1]["scheduleParams"].cost != -1:
+        if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["scheduleParams"].cost != -1:
             return True
         else:
             return False
@@ -393,47 +393,61 @@ class TaskHarmoniserAgent():
             print "OQ:\n", ordered_queue
             dac = next(iter(ordered_queue.items()))[1]
             print "dac: ", dac
-            # DAset_GH = {}
-            # DAset_HF = {}
-            # cGH = {}
-            # cHF = {}
-            # # print "Q:"
-            # # print self.queue
-            # DAset_GH = filter(self.filterDA_GH, self.queue.items())
-            # DAset_HF = filter(self.filterDA_HF, self.queue.items())
-            # # print "DAset_GH:"
-            # # print DAset_GH
-            # # print "DAset_T:"
-            # # print DAset_T
-            # # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
-            # # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
-            # q_GH = OrderedDict(sorted(DAset_GH, 
-            #                 key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
-            # q_HF = OrderedDict(sorted(DAset_HF, 
-            #                 key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
-            # if debug == True:
-            #     cost_file.write("\n"+"Q:\n")
-            #     cost_file.write(str(self.queue)+"\n")
-            # if len(DAset_HF) > 0:
-            #     # print "q_GH"
-            #     # print q_GH
-            #     cHF = next(iter(q_HF.items()))[1]
-            #     if debug == True:
-            #         cost_file.write("\n"+"cHF:"+"\n")
-            #         cost_file.write(str(cHF)+"\n")
-            #     # print "cGH"
-            #     # print cGH
-            # if len(DAset_GH) > 0:
-            #     cGH = next(iter(q_GH.items()))[1]
-            #     if debug == True:
-            #         cost_file.write("\n"+"cGH:"+"\n")
-            #         cost_file.write(str(cGH)+"\n")
+            DAset_GH = {}
+            DAset_HF = {}
+            cGH = {}
+            cHF = {}
+            # print "Q:"
+            # print self.queue
+            DAset_GH = filter(self.filterDA_GH, self.queue.items())
+            DAset_HF = filter(self.filterDA_HF, self.queue.items())
+            # print "DAset_GH:"
+            # print DAset_GH
+            # print "DAset_T:"
+            # print DAset_T
+            # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
+            # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
+            q_GH = OrderedDict(sorted(DAset_GH, 
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+            q_HF = OrderedDict(sorted(DAset_HF, 
+                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+            if debug == True:
+                cost_file.write("\n"+"Q:\n")
+                cost_file.write(str(self.queue)+"\n")
+            if len(DAset_HF) > 0:
+                # print "q_GH"
+                # print q_GH
+                cHF = next(iter(q_HF.items()))[1]
+                if debug == True:
+                    cost_file.write("\n"+"cHF:"+"\n")
+                    cost_file.write(str(cHF)+"\n")
+                dac = cHF
+                if self.isExecuting():
+                    if not self.filterDA_HF([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return
+                # print "cGH"
+                # print cGH
+            elif len(DAset_GH) > 0:
+                cGH = next(iter(q_GH.items()))[1]
+                if debug == True:
+                    cost_file.write("\n"+"cGH:"+"\n")
+                    cost_file.write(str(cGH)+"\n")
+                dac = cGH 
+                if self.isExecuting():
+                    if not self.filterDA_GH([None,self.execField]) and not self.filterDA_HF([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return        
             # if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
             #     cost_file.write("\n"+"No candidate"+"\n")
             #     print "No candidate"
             #     self.lock.release()
             #     return
-            # dac = {}
+
             if self.isExecuting() and not self.isInterrupting():
                 if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
                     # Exec cost for suspension behaviour and task continue starting from DAC final_resource_state -- cc_exec
@@ -642,7 +656,7 @@ class TaskHarmoniserAgent():
                     # while commanding DA stays in ["Wait", "init", "UpdateTask"] longer then max_sleep_counter after ['start','resume'] signal,
                     # terminate the commanding DA
                     if max_sleep_counter == sleep_counter:
-                        self.set_DA_signal(da_name=commanding["da_name"], signal = "terminate", data = ["executable", "spotify", "priority", self._switch_priority])
+                        self.set_DA_signal(da_name=commanding["da_name"], signal = "terminate", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
                         while not rospy.is_shutdown():
                             print "[Switch] -- while sleep counter"
                             wait_flag = self.isDAAlive(commanding["da_name"])
@@ -660,7 +674,7 @@ class TaskHarmoniserAgent():
                     
                 if self.isDAAlive(commanding["da_name"]):
                     print("SEND SUSPEND to commanding: ", commanding["da_id"])
-                    self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["executable", "spotify", "priority", self._switch_priority])
+                    self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
 
                     r = rospy.Rate(5) # 10hz
                     # wait until exec DA terminates or swithes to wait state

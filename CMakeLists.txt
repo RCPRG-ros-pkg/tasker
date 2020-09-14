@@ -80,6 +80,7 @@ endif()
 
   catkin_install_python(PROGRAMS 
   		bin/exampleState
+  		bin/exemplary_susp_task
   		bin/txt_guideHuman
   		bin/txt_hazardDetection
       bin/txt_human_fell
