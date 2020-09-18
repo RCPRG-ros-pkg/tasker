@@ -22,19 +22,21 @@ class TaskHarmoniserAgent():
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
-        self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateSP)
+        self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueData)
         self.DA_processes = {}
         self._switch_priority = None
-    def updateSP(self, data):
+    def updateQueueData(self, data):
         global th
         print("\nUPDATE SP\n")
-        print "updateSP: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params
+        print "updateQueueData: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params
         if data.da_state == 'END':
             if self.queue.has_key(data.da_id):
                 self.removeDA(self.queue[data.da_id])
             else:
                 raise Exception('This DA: <'+data.da_name+'> is not found in THA queue')
         self.updateScheduleParams(data.da_id, data.schedule_params)
+        priority = self.computePriority(data.schedule_params)
+        self.updatePriority(data.da_id, priority)
         self.updateDAState(data.da_id, data.da_state)
         print("\nUPDATED SP\n")
 
@@ -71,6 +73,7 @@ class TaskHarmoniserAgent():
         # type: (dict) -> None
         self.queue[da["da_id"]] = da
     def removeDA(self, da):
+        self.lock.acquire()
         # type: (dict) -> None
         if self.isInterrupting():
             if self.interruptField["da_id"] == da["da_id"]:
@@ -85,6 +88,7 @@ class TaskHarmoniserAgent():
             # Process hasn't exited yet, let's wait some
             print("TH waits for DA: "+da["da_id"]+" termination")
             time.sleep(0.5)
+        self.lock.release()
     def updatePriority(self, da_id, priority):
         # type: (int, int) -> None
         self.lock.acquire()
@@ -106,12 +110,18 @@ class TaskHarmoniserAgent():
         # self.queue[da_id]["scheduleParams"].priority = float(priority)
         # print ("NQ: ", self.queue[da_id])
         self.lock.release()
+
+    def computePriority(self, schedule_params):
+        priority = -1* schedule_params.cost 
+        return priority
+
     def updateScheduleParams(self, da_id, scheduleParams):
         # type: (int, ScheduleParams) -> None
         self.lock.acquire()
         if self.isExecuting():
             if self.execField["da_id"] == da_id:
                 self.execField["scheduleParams"] = scheduleParams
+
                 self.lock.release()
                 return
         if self.isInterrupting():
@@ -360,12 +370,12 @@ class TaskHarmoniserAgent():
         self.lock.release()
         # print("\nSCHEDULED\n")
     def filterDA_GH(self, DA):
-        if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["scheduleParams"].cost != -1:
+        if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
             return False
     def filterDA_HF(self, DA):
-        if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["scheduleParams"].cost != -1:
+        if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
             return False
@@ -380,8 +390,6 @@ class TaskHarmoniserAgent():
             if not rosnode.rosnode_ping(exec_da_name, 1):
                 print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
                 self.execField = {}
-            else:
-                self.execField["priority"] = self.execField["scheduleParams"].cost
         if self.isInterrupting():
             irr_da_name = "/"+self.interruptField["da_name"]
             # print("checking  EXEC node: ", exec_da_name)
@@ -400,10 +408,9 @@ class TaskHarmoniserAgent():
         print "OUT OUT"
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+                            key=lambda kv: kv[1]["priority"], reverse=True))
             print "OQ:\n", ordered_queue
             dac = next(iter(ordered_queue.items()))[1]
-            print "dac: ", dac
             DAset_GH = {}
             DAset_HF = {}
             cGH = {}
@@ -419,13 +426,15 @@ class TaskHarmoniserAgent():
             # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
             # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
             q_GH = OrderedDict(sorted(DAset_GH, 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+                            key=lambda kv: kv[1]["priority"], reverse=True))
             q_HF = OrderedDict(sorted(DAset_HF, 
-                            key=lambda kv: kv[1]["scheduleParams"].cost, reverse=False))
+                            key=lambda kv: kv[1]["priority"], reverse=True))
             if debug == True:
                 cost_file.write("\n"+"Q:\n")
                 cost_file.write(str(self.queue)+"\n")
+
             if len(DAset_HF) > 0:
+                print "Have HF"
                 # print "q_GH"
                 # print q_GH
                 cHF = next(iter(q_HF.items()))[1]
@@ -442,25 +451,40 @@ class TaskHarmoniserAgent():
                 # print "cGH"
                 # print cGH
             elif len(DAset_GH) > 0:
+                print "Have GH"
                 cGH = next(iter(q_GH.items()))[1]
                 if debug == True:
                     cost_file.write("\n"+"cGH:"+"\n")
                     cost_file.write(str(cGH)+"\n")
                 dac = cGH 
                 if self.isExecuting():
-                    if not self.filterDA_GH([None,self.execField]) and not self.filterDA_HF([None,self.execField]):
+                    if self.filterDA_HF([None,self.execField]):
+                        self.lock.release()
+                        return
+                    elif not self.filterDA_GH([None,self.execField]):
                         switch_priority = "normal"
                         self.updateIrrField(dac,switch_priority,cost_file)
                         self.lock.release()
-                        return        
+                        return    
+            else:
+                if self.isExecuting():
+                    if not self.execField["da_type"] == dac["da_type"]:
+                        print "Executing a task of a type that has higher priority" 
+                        self.lock.release()
+                        return 
             # if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
             #     cost_file.write("\n"+"No candidate"+"\n")
             #     print "No candidate"
             #     self.lock.release()
             #     return
 
+            print "dac: ", dac
             if self.isExecuting() and not self.isInterrupting():
-                if dac["scheduleParams"].cost > self.execField["scheduleParams"].cost:
+                print "COMPARISION of TASKS of same type"
+                print "dac priority: ", dac["priority"]
+                print "exe priority: ", self.execField["priority"]
+                if dac["priority"] > self.execField["priority"]:
+                    print "REQUESTING reqParam services"
                     # Exec cost for suspension behaviour and task continue starting from DAC final_resource_state -- cc_exec
                     #       , incremental (per sec) cost while waiting for start -- ccps_exec
                     while not rospy.is_shutdown() and not self.hasService('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions'):
@@ -613,7 +637,7 @@ class TaskHarmoniserAgent():
             #         #     cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
             #         #     print "candidate priority was less then executing task"
             elif not self.isExecuting() and not self.isInterrupting():
-                print "No EXEC dynamic agent"
+                print "No EXEC, NO IRR dynamic agent"
                 # if len(DAset_HF) > 0:
                 #     print "HF len > 0"
                 #     self.updateIrrField(cHF,cost_file)

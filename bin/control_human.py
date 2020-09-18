@@ -177,11 +177,7 @@ if __name__ == '__main__':
             vel.linear.x = 0
             vel.linear.y = 0
             vel.angular.z = 0
-            br.sendTransform((human_transform[0], human_transform[1], 0),
-                         tf.transformations.quaternion_from_euler(0, 0, human_transform[2]),
-                         rospy.Time.now(),
-                         actor_name,
-                         "map")
+
             marker.ns = "human"
             marker.id = actor_id
             marker.action = Marker.MODIFY
@@ -213,4 +209,9 @@ if __name__ == '__main__':
             marker.lifetime = rospy.Duration()
             marker_pub.publish(marker)
             marker_pub.publish(marker_name)
+        br.sendTransform((human_transform[0], human_transform[1], 0),
+             tf.transformations.quaternion_from_euler(0, 0, human_transform[2]),
+             rospy.Time.now(),
+             actor_name,
+             "map")
         rospy.sleep(0.1)
