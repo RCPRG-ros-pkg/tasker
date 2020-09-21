@@ -63,7 +63,7 @@ class TaskHarmoniserAgent():
     def addDA(self, added, da_name, da_type):
         # type: (int) -> None
         self.lock.acquire()        
-        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'da_state': "init", 'last_cmd_sent': None,  'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
+        da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'da_state': ["init"], 'last_cmd_sent': None,  'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
         self.queue[added] = da
         self.lock.release()
     def updateDA(self, da_id, da_name, da_type, da_state, priority, scheduleParams):
@@ -84,11 +84,33 @@ class TaskHarmoniserAgent():
         self.queue.pop(da["da_id"], None)
         p = self.DA_processes[da["da_id"]]['process']
         # Wait until process terminates (without using p.wait())
-        while p.poll() is None:
-            # Process hasn't exited yet, let's wait some
-            print("TH waits for DA: "+da["da_id"]+" termination")
-            time.sleep(0.5)
+        #
+        #
+        
+        # while p.poll() is None:
+        #     # Process hasn't exited yet, let's wait some
+        #     print("TH waits for DA: "+da["da_id"]+" termination")
+        #     time.sleep(0.5)
         self.lock.release()
+
+    def removeDA_no_lock(self, da):
+        # type: (dict) -> None
+        if self.isInterrupting():
+            if self.interruptField["da_id"] == da["da_id"]:
+                self.interruptField = {}
+        if self.isExecuting(): 
+            if self.execField["da_id"] == da["da_id"]:
+                self.execField = {}
+        self.queue.pop(da["da_id"], None)
+        p = self.DA_processes[da["da_id"]]['process']
+        # Wait until process terminates (without using p.wait())
+        #
+        #
+
+        # while p.poll() is None:
+        #     # Process hasn't exited yet, let's wait some
+        #     print("TH waits for DA: "+da["da_name"]+" termination")
+        #     time.sleep(0.5)
     def updatePriority(self, da_id, priority):
         # type: (int, int) -> None
         self.lock.acquire()
@@ -284,14 +306,40 @@ class TaskHarmoniserAgent():
         cmd = CMD(recipient_name = da_name, cmd = signal, data = data)
         print cmd
         self.cmd_pub.publish(cmd)
-    def isDAAlive(self, da_name):
-        print("checking DA: "+da_name)
-        if not rosnode.rosnode_ping("/"+da_name, 1):
-                rospy.sleep(0.1)
-                if not rosnode.rosnode_ping("/"+da_name, 1):
-                    print("\n\n\nDA DEAD\n\n\n")
-                    return False
+    def isDAAlive_no_lock(self, da):
+        print("checking DA: "+da["da_name"])
+        if da["da_state"] == ['END']:
+            print "THA -> DA <"+da["da_name"]+"> in END state"
+            return False
+        if not rosnode.rosnode_ping("/"+da["da_name"], 1):
+            rospy.sleep(0.2)
+            if not rosnode.rosnode_ping("/"+da["da_name"], 1):
+                da["ping_count"] = da["ping_count"] + 1
+            if da["ping_count"] > 4:
+                print("\n\n\nDA DEAD\n\n\n")
+                return False         
+        da["ping_count"] = 0       
         print("\n\n\nDA ALIVE\n\n\n")
+        return True
+
+    def isDAAlive_with_lock(self, da):
+        self.lock.acquire()
+        print("checking DA: "+da["da_name"])
+        if da["da_state"] == ['END']:
+            print "THA -> DA <"+da["da_name"]+"> in END state"
+            self.lock.release()
+            return False
+        if not rosnode.rosnode_ping("/"+da["da_name"], 1):
+            rospy.sleep(0.2)
+            if not rosnode.rosnode_ping("/"+da["da_name"], 1):
+                da["ping_count"] = da["ping_count"] + 1
+            if da["ping_count"] > 4:
+                print("\n\n\nDA DEAD\n\n\n")
+                self.lock.release()
+                return False                
+        print("\n\n\nDA ALIVE\n\n\n")
+        da["ping_count"] = 0       
+        self.lock.release()
         return True
 
     def hasService(self, srv_name):
@@ -370,11 +418,15 @@ class TaskHarmoniserAgent():
         self.lock.release()
         # print("\nSCHEDULED\n")
     def filterDA_GH(self, DA):
+        if DA[1]["da_state"] == 'END':
+            return False
         if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
             return False
     def filterDA_HF(self, DA):
+        if DA[1]["da_state"] == 'END':
+            return False
         if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
@@ -384,27 +436,52 @@ class TaskHarmoniserAgent():
         # print("\nSCHEDULE\n")
         self.lock.acquire()
         debug = False
+        if len(self.queue) > 0:
+            ordered_queue = OrderedDict(sorted(self.queue.items(), 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
+            print "Queue before END check:\n", ordered_queue
         if self.isExecuting():
-            exec_da_name = "/"+self.execField["da_name"]
-            # print("checking  EXEC node: ", exec_da_name)
-            if not rosnode.rosnode_ping(exec_da_name, 1):
-                print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
-                self.execField = {}
+            if not self.isDAAlive_no_lock(self.execField):
+                "THA-> removes DA: ", self.execField["da_name"]
+                self.removeDA_no_lock(self.execField)
         if self.isInterrupting():
-            irr_da_name = "/"+self.interruptField["da_name"]
-            # print("checking  EXEC node: ", exec_da_name)
-            if not rosnode.rosnode_ping(irr_da_name, 1):
-                print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
-                self.interruptField = {}
-
+            if not self.isDAAlive_no_lock(self.interruptField):
+                "THA-> removes DA: ", self.interruptField["da_name"]
+                self.removeDA_no_lock(self.interruptField)
         for da in self.queue.items():
-            if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
-                rospy.sleep(3)
-                if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
-                    print "REMOVED:"
-                    print da[1]["da_name"]
-                    self.removeDA(da[1])
-                print "NEXT DA"
+            if not self.isDAAlive_no_lock(da[1]):
+                "THA-> removes DA: ", da[1]["da_name"]
+                self.removeDA_no_lock(da[1])
+
+        # if self.isExecuting():
+        #     exec_da_name = "/"+self.execField["da_name"]
+        #     # print("checking  EXEC node: ", exec_da_name)
+        #     if self.execField["da_state"] == 'END':
+        #         self.removeDA_no_lock(self.execField)
+        #         self.execField = {}
+        #     if not rosnode.rosnode_ping(exec_da_name, 1):
+        #         print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
+        #         self.execField = {}
+        # if self.isInterrupting():
+        #     irr_da_name = "/"+self.interruptField["da_name"]
+        #     # print("checking  EXEC node: ", exec_da_name)
+        #     if self.interruptField["da_state"] == 'END':
+        #         self.removeDA_no_lock(self.interruptField)
+        #         self.interruptField = {}
+        #     if not rosnode.rosnode_ping(irr_da_name, 1):
+        #         print("FINIIIIIISSSSSHHHHHHEEEEDDDD")
+        #         self.interruptField = {}
+
+        # for da in self.queue.items():
+        #     if da[1]["da_state"] == 'END':
+        #         self.removeDA_no_lock(da[1])
+        #     if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
+        #         rospy.sleep(3)
+        #         if not rosnode.rosnode_ping("/"+da[1]["da_name"], 1):
+        #             print "REMOVED:"
+        #             print da[1]["da_name"]
+        #             self.removeDA_no_lock(da[1])
+        #         print "NEXT DA"
         print "OUT OUT"
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
@@ -694,7 +771,7 @@ class TaskHarmoniserAgent():
                         self.set_DA_signal(da_name=commanding["da_name"], signal = "terminate", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
                         while not rospy.is_shutdown():
                             print "[Switch] -- while sleep counter"
-                            wait_flag = self.isDAAlive(commanding["da_name"])
+                            wait_flag = self.isDAAlive_with_lock(commanding)
                             if wait_flag:
                                 print("Waiting for DA: ",commanding["da_name"]," to terminate after long processing of ['start','resume'] command, and new interruption is comming")
                                 rospy.Rate(5).sleep()
@@ -707,19 +784,19 @@ class TaskHarmoniserAgent():
                         break
                     rospy.sleep(1)
                     
-                if self.isDAAlive(commanding["da_name"]):
+                if self.isDAAlive_with_lock(commanding):
                     print("SEND SUSPEND to commanding: ", commanding["da_id"])
                     self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
 
                     r = rospy.Rate(5) # 10hz
                     # wait until exec DA terminates or swithes to wait state
                     while not rospy.is_shutdown():
-                        wait_flag = (self.isDAAlive(commanding["da_name"]) and (commanding["da_state"][0]!="Wait"))
+                        wait_flag = (self.isDAAlive_with_lock(commanding) and (commanding["da_state"][0]!="Wait"))
                         if wait_flag:
                             print("Switch thread waits for exec_da to be WAIT or DEAD")
                             r.sleep()
                         else:
-                            if not self.isDAAlive(commanding["da_name"]):
+                            if not self.isDAAlive_with_lock(commanding):
                                 # Exec DA is terminated, remove it from Exec field
                                 self.lock.acquire()
                                 self.execField = {}
