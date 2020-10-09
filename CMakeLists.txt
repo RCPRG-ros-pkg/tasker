@@ -4,31 +4,7 @@ project(TaskER)
 
 # Get the information about this package's buildtime dependencies
   find_package(catkin REQUIRED
-    COMPONENTS message_generation std_msgs geometry_msgs rospy)
-
-  # Declare the message files to be built
-  add_message_files(FILES
-    TaskState.msg
-    ScheduleParams.msg
-    Status.msg
-    RobotResource.msg
-    ShdlData.msg
-    ShdlDataStamped.msg
-    CMD.msg
-  #  MyMessage2.msg
-  )
-
-
-  # Declare the service files to be built
-  add_service_files(FILES
-    TaskRequest.srv
-    LaunchConditions.srv
-    StartTask.srv
-    HoldConditions.srv
-    SchedulingConditions.srv
-    SuspendConditions.srv
-    CostConditions.srv
-  )
+    COMPONENTS tasker_msgs message_generation std_msgs geometry_msgs rospy)
 
   catkin_python_setup()
 if(USE_PDDL)
@@ -59,8 +35,6 @@ endif()
 
 
   # Actually generate the language-specific message and service files
-  generate_messages(DEPENDENCIES std_msgs geometry_msgs)
-
 # Catkin package  
   catkin_package(
    INCLUDE_DIRS 

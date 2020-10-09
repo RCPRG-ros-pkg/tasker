@@ -19,7 +19,6 @@ if __name__ == '__main__':
     global vel
     vel = Twist()
     rospy.init_node('control_human',anonymous=True)
-    actor_frame = rospy.get_param('~actor_frame')
     actor_name = rospy.get_param('~actor_name')
     actor_id = rospy.get_param('~actor_id')
     actor_gender = rospy.get_param('~actor_gender')

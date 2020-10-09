@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from TaskER.msg import *
-from TaskER.srv import *
+from tasker_msgs.msg import *
+from tasker_msgs.srv import *
 import threading
 import time
 import subprocess
@@ -432,6 +432,14 @@ class TaskHarmoniserAgent():
         else:
             return False
 
+    def filterDA_BJ(self, DA):
+        if DA[1]["da_state"] == 'END':
+            return False
+        if DA[1]["da_type"] == "bring_jar_tasker" and DA[1]["priority"] != float('-inf'):
+            return True
+        else:
+            return False
+
     def schedule_new(self, cost_file):
         # print("\nSCHEDULE\n")
         self.lock.acquire()
@@ -490,12 +498,15 @@ class TaskHarmoniserAgent():
             dac = next(iter(ordered_queue.items()))[1]
             DAset_GH = {}
             DAset_HF = {}
+            DAset_BJ = {}
             cGH = {}
             cHF = {}
+            cBJ = {}
             # print "Q:"
             # print self.queue
             DAset_GH = filter(self.filterDA_GH, self.queue.items())
             DAset_HF = filter(self.filterDA_HF, self.queue.items())
+            DAset_BJ = filter(self.filterDA_BJ, self.queue.items())
             # print "DAset_GH:"
             # print DAset_GH
             # print "DAset_T:"
@@ -505,6 +516,8 @@ class TaskHarmoniserAgent():
             q_GH = OrderedDict(sorted(DAset_GH, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_HF = OrderedDict(sorted(DAset_HF, 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
+            q_BJ = OrderedDict(sorted(DAset_BJ, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             if debug == True:
                 cost_file.write("\n"+"Q:\n")
@@ -539,6 +552,22 @@ class TaskHarmoniserAgent():
                         self.lock.release()
                         return
                     elif not self.filterDA_GH([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return    
+            elif len(DAset_BJ) > 0:
+                print "Have BJ"
+                cBJ = next(iter(q_BJ.items()))[1]
+                if debug == True:
+                    cost_file.write("\n"+"cBJ:"+"\n")
+                    cost_file.write(str(cBJ)+"\n")
+                dac = cBJ 
+                if self.isExecuting():
+                    if self.filterDA_HF([None,self.execField]):
+                        self.lock.release()
+                        return
+                    elif not self.filterDA_BJ([None,self.execField]):
                         switch_priority = "normal"
                         self.updateIrrField(dac,switch_priority,cost_file)
                         self.lock.release()
