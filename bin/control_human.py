@@ -5,11 +5,14 @@ import rospkg
 import math
 import tf
 import turtlesim.msg
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Quaternion
 from visualization_msgs.msg import Marker
 from TaskER.srv import *
 from tiago_msgs.msg import Command
+from gazebo_msgs.msg import ModelState
+from tf.transformations import *
 global vel
+
 vel = Twist()
 def handle_actor_vel(msg):
     global vel
@@ -32,8 +35,14 @@ if __name__ == '__main__':
                      )
     br = tf.TransformBroadcaster()
     marker_pub = rospy.Publisher("ellipse", Marker, queue_size=10)
+    gazebo_control_pub = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=10)
     cmd_pub = rospy.Publisher("/rico_cmd", Command, queue_size=10)
-
+    gazebo_model_state = ModelState()
+    gazebo_model_state.model_name="John"
+    gazebo_model_state.pose.position.x = human_transform[0]
+    gazebo_model_state.pose.position.y = human_transform[1]
+    current_gz_rot = Quaternion()
+    gazebo_model_state.pose.orientation = current_gz_rot
     marker = Marker()
     marker.header.frame_id = "map"
     marker.header.stamp = rospy.Time.now()
@@ -100,6 +109,8 @@ if __name__ == '__main__':
         actor_posture = rospy.get_param(actor_name+"/actor_posture")
         marker_pub.publish(marker)
         if actor_posture == "fell":
+            rot = quaternion_multiply([current_gz_rot.x,current_gz_rot.y,current_gz_rot.z,current_gz_rot.w],quaternion_from_euler(-1.54, 0, 0))
+            gazebo_model_state.pose.orientation = Quaternion(rot[0],rot[1],rot[2],rot[3])
             fell_cmd = Command()
             fell_cmd.query_text=""
             fell_cmd.intent_name = "HF"
@@ -184,16 +195,21 @@ if __name__ == '__main__':
                 marker.mesh_resource = "file://"+tasker_path+"/makehuman/Male/male.dae"
             else:
                 marker.mesh_resource = "file://"+tasker_path+"/makehuman/Female/female.dae"
+            rot = tf.transformations.quaternion_from_euler(1.54, 0, human_transform[2]+1.54)
+            gazebo_model_state.pose.position.x = human_transform[0]
+            gazebo_model_state.pose.position.y = human_transform[1]
+            gazebo_model_state.pose.orientation = Quaternion(rot[0],rot[1],rot[2],rot[3])
+            current_gz_rot = gazebo_model_state.pose.orientation
             marker.pose.position.x = human_transform[0]
             marker.pose.position.y = human_transform[1]
             marker_name.pose.position.x = human_transform[0] 
             marker_name.pose.position.y = human_transform[1] 
             marker_name.pose.position.z = 2
             marker.pose.position.z = 0
-            marker.pose.orientation.x= tf.transformations.quaternion_from_euler(1.54, 0, human_transform[2]+1.54)[0]
-            marker.pose.orientation.y= tf.transformations.quaternion_from_euler(1.54, 0, human_transform[2]+1.54)[1]
-            marker.pose.orientation.z= tf.transformations.quaternion_from_euler(1.54, 0, human_transform[2]+1.54)[2]
-            marker.pose.orientation.w= tf.transformations.quaternion_from_euler(1.54, 0, human_transform[2]+1.54)[3]
+            marker.pose.orientation.x= rot[0]
+            marker.pose.orientation.y= rot[1]
+            marker.pose.orientation.z= rot[2]
+            marker.pose.orientation.w= rot[3]
             marker.scale.x = 1
             marker.scale.y = 1
             marker.scale.z = 1
@@ -213,4 +229,5 @@ if __name__ == '__main__':
              rospy.Time.now(),
              actor_name,
              "map")
+        gazebo_control_pub.publish(gazebo_model_state)
         rospy.sleep(0.1)

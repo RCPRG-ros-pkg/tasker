@@ -40,7 +40,7 @@ class TaskER(smach_rcprg.StateMachine):
                                     TaskER.Cleanup(self, da_state_name),
                                     transitions={'ok':'Finished', 'shutdown':'shutdown'},
                                     remapping={ })
-            
+        self.debug = False
     def swap_state(self, label, state):
         """Add a state to the opened state machine.
         
@@ -193,16 +193,19 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['start', 'terminate'])
 
         def execute(self, userdata):
-            rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
-            print 'Wait.execute'
+            if self.debug ==True:
+                rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
+                print 'Wait.execute'
             #srv.shutdown()
             fsm_cmd = None
 
             while not fsm_cmd == "resume":
                 data = userdata.susp_data.getData()
-                print "WAIT.data: ", data
+                if self.debug ==True:
+                    print "WAIT.data: ", data
                 for idx in range(0, len(data), 2):
-                    print data[idx]
+                    if self.debug ==True:
+                        print data[idx]
                     if data[idx] == 'cmd':
                         fsm_cmd = data[idx+1]
                 if self.preempt_requested() or fsm_cmd == 'terminate':

@@ -67,7 +67,7 @@ class DynAgent:
         self.da_id = int(da_id)
         self.taskType = da_type
         self.exec_fsm_state = ""
-        self.da_state = ["init"]
+        self.da_state = ["Init"]
         self.terminateFlag = False
         self.startFlag = False
         # self.process_ptf_csp(["scheduleParams", None])
@@ -88,7 +88,7 @@ class DynAgent:
     def terminateDA(self):
         if not self.terminateFlag == True:
             if self.main_sm.is_running():
-                if self.da_state[0] == "init" or self.getActiveStates( self.main_sm )[0][0] in ["Wait", "UpdateTask"]:
+                if self.da_state[0] == "Init" or self.getActiveStates( self.main_sm )[0][0] in ["Wait", "UpdateTask"]:
                     self.cmd_handler(CMD(recipient_name=self.name,cmd="terminate"))
                     my_status = Status()
                     my_status.da_id = self.da_id
@@ -132,9 +132,9 @@ class DynAgent:
     def updateStatus(self):
         global debug
         if self.is_initialised == False :
-            self.da_state = ['init']
+            self.da_state = ['Init']
         else:
-            print "update, states: ", self.getActiveStates( self.main_sm )
+            #print "update, states: ", self.getActiveStates( self.main_sm )
             self.da_state = self.getActiveStates( self.main_sm )[0]
 
         my_status = Status()
@@ -283,9 +283,18 @@ class DynAgent:
         return result
 
     def connectionCheckThread(self, args):
+        i_timeout = 0
+        while not rospy.has_param('/harmonizer_name'):
+            print "DA_tasker: param </harmonizer_name> is not set, waiting 3 seconds before shutdown ", i_timeout
+            i_timeout = i_timeout +1
+            if i_timeout >3:
+                raise Exception('DA TIMEOUT: param </harmonizer_name> is not set')
+            rospy.sleep(1)
+        harmonizer_name = "/"+rospy.get_param("/harmonizer_name")
+        print "Harmonizer name: ", harmonizer_name
         while not self.terminateFlag:
             active_ros_nodes = get_node_names()
-            if not '/rico_task_harmonizer' in active_ros_nodes:
+            if not harmonizer_name in active_ros_nodes:
                 print 'DynAgent "' + self.name + '" detected the task_harmonizer is dead'
                 self.terminateDA()
                 fsm_data = ["cmd", "terminate"]
@@ -306,8 +315,9 @@ class DynAgent:
                         diag.current_states.append( state_name )
                         diag.descriptions.append( state_desc )
                 else:
-                    diag.current_states.append("init")
+                    diag.current_states.append("Init")
                     diag.descriptions.append( "desc" )
+                rospy.sleep(1)
                 self.pub_diag.publish( diag )
             except Exception as e:
                 print 'Detected exception in dynamic agent'
