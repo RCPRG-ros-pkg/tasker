@@ -47,6 +47,7 @@ class TaskHarmonizer:
         #self.rico_says_client.wait_for_server()
         print 'ConversationMachine.__init__: connected to rico_says ActionServer'
         self._FINISH = False
+        self.debug_file = False
     def hasTaskSpecByIntent(self, intent_name):
         for task_spec in self.tasks_spec_list:
             if task_spec.intent_name == intent_name:
@@ -190,7 +191,10 @@ class TaskHarmonizer:
                     #raise Exception('There are some dynamic agents running out there...\n' + str(active_ros_nodes))
                     pass
     def scheduler(self):
-        cost_file = open("./TH_cost", "a+")
+        if self.debug_file:
+            cost_file = open("./TH_cost", "a+")
+        else:
+            cost_file =None
         try:
             while not rospy.is_shutdown():
                 # print "\n SCHEDULING \n"
@@ -201,12 +205,14 @@ class TaskHarmonizer:
                 if self._FINISH:
                     switch_priority = "hard"
                     self.tha.sendIndicator(switch_priority)
-                    cost_file.close()
+                    if self.debug_file ==True:
+                        cost_file.close()
                     break
         except Exception as e:
             print 'Detected exception in THA scheduler'
             print e
-            cost_file.close()
+            if self.debug_file ==True:
+                cost_file.close()
             self.tha.shutdown()
             self._FINISH = True
 

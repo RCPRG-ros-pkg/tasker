@@ -41,6 +41,8 @@ class TaskER(smach_rcprg.StateMachine):
                                     transitions={'ok':'Finished', 'shutdown':'shutdown'},
                                     remapping={ })
         self.debug = False
+    def isDebug(self):
+        return self.debug
     def swap_state(self, label, state):
         """Add a state to the opened state machine.
         
@@ -104,32 +106,49 @@ class TaskER(smach_rcprg.StateMachine):
             return 'ok'
 
     class BlockingState(smach_rcprg.State):
-        def __init__(self, outcomes=[], input_keys=[], output_keys=[], io_keys=[]):
+        def __init__(self, tf_freq=10, outcomes=[], input_keys=[], output_keys=[], io_keys=[]):
             self._userdata = None
-
-            smach_rcprg.State.__init__(self, outcomes=outcomes,
+            self.tf_freq = tf_freq
+            input_keys.append('susp_data')
+            output_keys.append('susp_data')
+            self.rcprg_state = smach_rcprg.State.__init__(self, outcomes=outcomes,
                                         input_keys=input_keys,
                                         output_keys=output_keys,
                                         io_keys=io_keys)
 
         def execute(self, userdata):
             self._userdata = userdata
-            return self.transition_function(userdata)
+            rate = rospy.Rate(self.tf_freq)
+            tf_result = None
+            while tf_result is None:
+                susp_flag = self.is_suspension_flag()
+                try:
+                    tf_result = self.transition_function(userdata)
+                except Exception, e: # work on python 2.x
+                    print('Failed to upload to ftp: '+ str(e))
+                    tf_result='error'
+                print "TF returned: ",tf_result
+                if susp_flag is not None:
+                    break
+                rate.sleep()
+            return tf_result
         def transition_function(self, userdata):
             pass
 
         def request_preempt(self):
-            print "got PREEEMPT SIGNAL IN BLOCKING STATE"
             fsm_cmd = None
-            data = self._userdata.susp_data.req_data
-            for idx in range(0, len(data), 2):
-                if data[idx] == 'cmd':
-                    fsm_cmd = data[idx+1]
-            print "FSM CMD: ", fsm_cmd
-            if fsm_cmd == 'susp':
-                pass
-            elif fsm_cmd == 'terminate':
-                return self.request_preempt()
+            if self._userdata is not None:
+                data = self._userdata.susp_data.req_data
+                for idx in range(0, len(data), 2):
+                    if data[idx] == 'cmd':
+                        fsm_cmd = data[idx+1]
+                print "FSM CMD: ", fsm_cmd
+                if fsm_cmd == 'susp':
+                    pass
+                elif fsm_cmd == 'terminate':
+                    return smach_rcprg.State.request_preempt(self)
+            else:
+                print "Blocking state "
 
         def is_suspension_flag(self):
             fsm_cmd = None
@@ -146,8 +165,11 @@ class TaskER(smach_rcprg.StateMachine):
                 return None
 
     class SuspendableState(smach_rcprg.State):
-        def __init__(self, outcomes=[], input_keys=[], output_keys=[], io_keys=[]):
+        def __init__(self, tf_freq=10, outcomes=[], input_keys=[], output_keys=[], io_keys=[]):
             self._userdata = None
+            self.tf_freq = tf_freq
+            input_keys.append('susp_data')
+            output_keys.append('susp_data')
             smach_rcprg.State.__init__(self, outcomes=outcomes,
                                         input_keys=input_keys,
                                         output_keys=output_keys,
@@ -155,7 +177,19 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self._userdata = userdata
-            return self.transition_function(userdata)
+            rate = rospy.Rate(self.tf_freq)
+            tf_result = None
+            while tf_result is None:
+                susp_flag = self.is_suspension_flag()
+                try:
+                    tf_result = self.transition_function(userdata)
+                except Exception, e: # work on python 2.x
+                    print('Failed to upload to ftp: '+ str(e))
+                print "TF returned: ",tf_result
+                if susp_flag is not None:
+                    break
+                rate.sleep()
+            return tf_result
         def transition_function(self, userdata):
             pass
         def is_suspension_flag(self):
@@ -193,7 +227,7 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['start', 'terminate'])
 
         def execute(self, userdata):
-            if self.debug ==True:
+            if self.tasker_instance.isDebug() ==True:
                 rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
                 print 'Wait.execute'
             #srv.shutdown()
@@ -201,10 +235,10 @@ class TaskER(smach_rcprg.StateMachine):
 
             while not fsm_cmd == "resume":
                 data = userdata.susp_data.getData()
-                if self.debug ==True:
+                if self.tasker_instance.isDebug() ==True:
                     print "WAIT.data: ", data
                 for idx in range(0, len(data), 2):
-                    if self.debug ==True:
+                    if self.tasker_instance.isDebug() ==True:
                         print data[idx]
                     if data[idx] == 'cmd':
                         fsm_cmd = data[idx+1]

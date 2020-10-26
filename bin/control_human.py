@@ -7,7 +7,7 @@ import tf
 import turtlesim.msg
 from geometry_msgs.msg import Twist, Quaternion
 from visualization_msgs.msg import Marker
-from TaskER.srv import *
+from tasker_msgs.srv import *
 from tiago_msgs.msg import Command
 from gazebo_msgs.msg import ModelState
 from tf.transformations import *
@@ -23,16 +23,19 @@ if __name__ == '__main__':
     vel = Twist()
     rospy.init_node('control_human',anonymous=True)
     actor_name = rospy.get_param('~actor_name')
-    actor_id = rospy.get_param('~actor_id')
+    if not rospy.has_param('/last_actor_id'):
+        actor_id = 0
+    else:
+        last_actor_id = rospy.get_param('/last_actor_id')
+        actor_id = last_actor_id+1
     actor_gender = rospy.get_param('~actor_gender')
     human_transform = rospy.get_param('~actor_init_pose')
-    actor_posture = rospy.set_param(actor_name+"/actor_posture", "stand")
-    print "HT:"
-    print human_transform
+    rospy.loginfo("Setting actor_init_pose: %f, %f, %f" % (human_transform[0], human_transform[1], human_transform[2]))
     rospy.Subscriber('/%s/vel' % actor_name,
                      Twist,
                      handle_actor_vel
                      )
+    actor_posture = rospy.set_param(actor_name+"/actor_posture", "stand")
     br = tf.TransformBroadcaster()
     marker_pub = rospy.Publisher("ellipse", Marker, queue_size=10)
     gazebo_control_pub = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=10)

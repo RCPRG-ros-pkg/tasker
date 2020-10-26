@@ -25,7 +25,8 @@ class TaskHarmoniserAgent():
         self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueData)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = False
+        self.debug = True
+        self.debug_file = False
     def updateQueueData(self, data):
         global th
         if self.debug ==True:
@@ -294,12 +295,13 @@ class TaskHarmoniserAgent():
     # print ("NDA: ", next_da)
     # print ("NDA_ID: ", next_da["da_id"])
         debug = False
-        if debug == True:
+        if self.debug_file == True:
             cost_file.write("\n"+"IrrField:"+"\n")
             cost_file.write(str(next_da)+"\n")
         else:
-            cost_file.write("\n"+"IrrField:"+"\n")
-            cost_file.write("\t Name: "+str(next_da["da_name"])+"\n")
+            if self.debug ==True:
+                print("\n"+"IrrField:"+"\n")
+                print("\t Name: "+str(next_da["da_name"])+"\n")
         self.makeInterrupting(next_da["da_id"])
         if not self.switchIndicator.isSet():
             self.sendIndicator(switch_priority)
@@ -457,7 +459,6 @@ class TaskHarmoniserAgent():
     def schedule_new(self, cost_file):
         # print("\nSCHEDULE\n")
         self.lock.acquire()
-        debug = False
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]["priority"], reverse=True))
@@ -538,7 +539,7 @@ class TaskHarmoniserAgent():
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_BJ = OrderedDict(sorted(DAset_BJ, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
-            if debug == True:
+            if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
                 cost_file.write(str(self.queue)+"\n")
 
@@ -548,7 +549,7 @@ class TaskHarmoniserAgent():
                 # print "q_GH"
                 # print q_GH
                 cHF = next(iter(q_HF.items()))[1]
-                if debug == True:
+                if self.debug_file == True:
                     cost_file.write("\n"+"cHF:"+"\n")
                     cost_file.write(str(cHF)+"\n")
                 dac = cHF
@@ -564,7 +565,7 @@ class TaskHarmoniserAgent():
                 if self.debug ==True:
                     print "Have GH"
                 cGH = next(iter(q_GH.items()))[1]
-                if debug == True:
+                if self.debug_file == True:
                     cost_file.write("\n"+"cGH:"+"\n")
                     cost_file.write(str(cGH)+"\n")
                 dac = cGH 
@@ -581,7 +582,7 @@ class TaskHarmoniserAgent():
                 if self.debug ==True:
                     print "Have BJ"
                 cBJ = next(iter(q_BJ.items()))[1]
-                if debug == True:
+                if self.debug_file == True:
                     cost_file.write("\n"+"cBJ:"+"\n")
                     cost_file.write(str(cBJ)+"\n")
                 dac = cBJ 

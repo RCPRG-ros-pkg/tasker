@@ -16,8 +16,7 @@ import tiago_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest
 
 class SmachShutdownManager:
-    def __init__(self, dyn_agent, main_sm, list_asw, list_sis):
-        self.__dyn_agent__ = dyn_agent
+    def __init__(self, main_sm, list_asw, list_sis):
         self.__main_sm__ = main_sm
         self.__list_asw__ = list_asw
         self.__list_sis__ = list_sis
@@ -35,7 +34,7 @@ class SmachShutdownManager:
             # This is a veru ugly hack:
             asw._action_server.action_server.started = False
 
-            asw.wrapped_container.request_preempt()
+            # asw.wrapped_container.request_preempt()
 
         
 
@@ -87,13 +86,13 @@ class DynAgent:
         # self.main_sm.request_preempt()
     def terminateDA(self):
         if not self.terminateFlag == True:
+            my_status = Status()
+            my_status.da_id = self.da_id
+            my_status.da_name = self.name
+            my_status.type = self.taskType
             if self.main_sm.is_running():
                 if self.da_state[0] == "Init" or self.getActiveStates( self.main_sm )[0][0] in ["Wait", "UpdateTask"]:
                     self.cmd_handler(CMD(recipient_name=self.name,cmd="terminate"))
-                    my_status = Status()
-                    my_status.da_id = self.da_id
-                    my_status.da_name = self.name
-                    my_status.type = self.taskType
                     self.da_state = ["END"]
                     my_status.da_state = self.da_state
                     self.pub_status.publish(my_status) 
@@ -101,13 +100,13 @@ class DynAgent:
                 else:
                     print "DA triggered self termination flag. It is in CMD state, so the flag triggers preemption"
                     self.suspTask(["cmd", "terminate"])
+                    self.da_state = ["END"]
+                    my_status.da_state = self.da_state
+                    self.pub_status.publish(my_status) 
+                    self.terminateFlag = True
             else:
                 print "DA -> TaskER Termination not required, because TaskER FSM is not running. Sending <END> state to THA"
                 self.cmd_handler(CMD(recipient_name=self.name,cmd="terminate"))
-                my_status = Status()
-                my_status.da_id = self.da_id
-                my_status.da_name = self.name
-                my_status.type = self.taskType
                 self.da_state = ["END"]
                 my_status.da_state = self.da_state
                 self.pub_status.publish(my_status) 
@@ -182,7 +181,7 @@ class DynAgent:
                 fsm_data = ["cmd", "terminate"]
                 fsm_data.extend(data.data)
                 self.da_suspend_request.setData(fsm_data)
-                self.main_sm.request_preempt()
+                # self.main_sm.request_preempt()
                 self.main_sm.shutdownRequest()
 
     def suspendConditionHandler(self, req):
@@ -197,11 +196,11 @@ class DynAgent:
         #sis_main = smach_ros.IntrospectionServer('behaviour_server', self.main_sm, '/SM_BEHAVIOUR_SERVER')
         #sis_main.start()
 
-        #ssm = SmachShutdownManager(self.main_sm, [], [sis_main])
+        sis = smach_ros.IntrospectionServer(str("/"+self.name+"smach_view_server"), self.main_sm, self.name)
+        sis.start()
+        ssm = SmachShutdownManager(self.main_sm, [], [sis])
 
-        # sis = smach_ros.IntrospectionServer(str("/"+self.name+"smach_view_server"), self.main_sm, self.name)
-        # sis.start()
-        ssm = SmachShutdownManager(self, self.main_sm, [], [])
+        # ssm = SmachShutdownManager(self, self.main_sm, [], [])
         # setup status interface for the task harmoniser
         self.pub_status = rospy.Publisher('TH/statuses', Status, queue_size=10)
         # subsribe to commands from the task harmoniser 
@@ -299,7 +298,7 @@ class DynAgent:
                 self.terminateDA()
                 fsm_data = ["cmd", "terminate"]
                 self.suspTask(fsm_data)
-                self.main_sm.request_preempt()
+                # self.main_sm.request_preempt()
                 self.main_sm.shutdownRequest()
                 break
 
@@ -323,8 +322,9 @@ class DynAgent:
                 print 'Detected exception in dynamic agent'
                 print e
                 self.terminateDA()
-                self.main_sm.request_preempt()
+                # self.main_sm.request_preempt()
                 self.main_sm.shutdownRequest()
                 break
 
             time.sleep(0.2)
+        print "CONN ended"
