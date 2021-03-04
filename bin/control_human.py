@@ -29,6 +29,7 @@ if __name__ == '__main__':
         last_actor_id = rospy.get_param('/last_actor_id')
         actor_id = last_actor_id+1
     actor_gender = rospy.get_param('~actor_gender')
+    rospy.set_param('/last_actor_id', actor_id)
     human_transform = rospy.get_param('~actor_init_pose')
     rospy.loginfo("Setting actor_init_pose: %f, %f, %f" % (human_transform[0], human_transform[1], human_transform[2]))
     rospy.Subscriber('/%s/vel' % actor_name,

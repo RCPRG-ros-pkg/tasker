@@ -1,10 +1,11 @@
 <launch>
 	<arg name='actor_name' default='John'/>
-	<arg name='actor_init_pose' default="[3, -4, 3.14]"/>
+	<!--<arg name='actor_init_pose' default="[3, -4, 3.14]"/> -->
+	<arg name='actor_init_pose' default="[0, -1, 0]"/>
 	<arg name='actor_gender' default='male'/>
 	<rosparam param="actor_init_pose" subst_value="True">$(arg actor_init_pose)</rosparam>
 
-	<node name='control_actor' pkg='TaskER' type='control_human.py' output='screen'>
+	<node name='$(anon control_actor)' pkg='TaskER' type='control_human.py' output='screen'>
 		<param name='actor_name' value='$(arg actor_name)'/>
 		<rosparam param="actor_init_pose" subst_value="True">$(arg actor_init_pose)</rosparam>
 		<param name='actor_gender' value='$(arg actor_gender)'/>
