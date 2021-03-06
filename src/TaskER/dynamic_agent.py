@@ -60,6 +60,7 @@ class DynAgent:
         self.sub_task_state_cmd = rospy.Subscriber('/' + self.name + '/task_state_cmd', String, self.callbackTaskStateCmd)
         self.finished = False
         self.pub_diag = rospy.Publisher('/current_dyn_agent/diag', tiago_msgs.msg.DynAgentDiag, queue_size=10)
+        self.pub_shdl = rospy.Publisher('~shdl_params', ScheduleParams, queue_size=10)
         # assign ptf update state
         self.ptf_csp = ptf_csp
         # set DA_ID used by TaskER
@@ -148,6 +149,7 @@ class DynAgent:
         my_status.da_state = self.da_state
         if debug:
             print("UPDATEING STATUS params of: "+str(self.name)+"\n of "+ str( self.taskType)+" type \n"+str(my_status.schedule_params)+"\n")
+        self.pub_shdl.publish(my_status.schedule_params)
         self.pub_status.publish(my_status) 
         # print("STATUS was sent"+"\n")
     def cmd_handler(self, data):

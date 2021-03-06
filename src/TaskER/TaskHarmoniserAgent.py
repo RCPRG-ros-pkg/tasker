@@ -222,7 +222,13 @@ class TaskHarmoniserAgent():
     def makeExecuting(self):
         # type: () -> None
         if self.isExecuting():
+            # print "================================="
+            # print "adding DA: ", self.execField
+            # print "================================="
             self.updateDA(self.execField)
+            # print "================================="
+            # print "queue: ", self.queue
+            # print "================================="
         self.execField = self.interruptField
         self.interruptField = {}
     def isInterrupting(self):
@@ -314,29 +320,32 @@ class TaskHarmoniserAgent():
             print cmd
         self.cmd_pub.publish(cmd)
     def isDAAlive_no_lock(self, da):
-        print("checking DA: "+da["da_name"])
+        # print("checking DA: "+da["da_name"])
         if da["da_state"] == ['END']:
             if self.debug ==True:
-                print "THA -> DA <"+da["da_name"]+"> in END state"
+                pass
+                # print "THA -> DA <"+da["da_name"]+"> in END state"
             return False
         if not rosnode.rosnode_ping("/"+da["da_name"], 1):
             rospy.sleep(0.2)
             if not rosnode.rosnode_ping("/"+da["da_name"], 1):
                 da["ping_count"] = da["ping_count"] + 1
             if da["ping_count"] > 4:
-                print("\n\n\nDA DEAD\n\n\n")
+                # print("\n\n\nDA DEAD\n\n\n")
                 return False         
         da["ping_count"] = 0       
-        print("\n\n\nDA ALIVE\n\n\n")
+        # print("\n\n\nDA ALIVE\n\n\n")
         return True
 
     def isDAAlive_with_lock(self, da):
         self.lock.acquire()
         if self.debug ==True:
-            print("checking DA: "+da["da_name"])
+            pass
+            # print("checking DA: "+da["da_name"])
         if da["da_state"] == ['END']:
             if self.debug ==True:
-                print "THA -> DA <"+da["da_name"]+"> in END state"
+                pass
+                # print "THA -> DA <"+da["da_name"]+"> in END state"
             self.lock.release()
             return False
         if not rosnode.rosnode_ping("/"+da["da_name"], 1):
@@ -344,10 +353,10 @@ class TaskHarmoniserAgent():
             if not rosnode.rosnode_ping("/"+da["da_name"], 1):
                 da["ping_count"] = da["ping_count"] + 1
             if da["ping_count"] > 4:
-                print("\n\n\nDA DEAD\n\n\n")
+                # print("\n\n\nDA DEAD\n\n\n")
                 self.lock.release()
                 return False                
-        print("\n\n\nDA ALIVE\n\n\n")
+        # print("\n\n\nDA ALIVE\n\n\n")
         da["ping_count"] = 0       
         self.lock.release()
         return True
@@ -656,8 +665,15 @@ class TaskHarmoniserAgent():
                     shdl_data.data.dac_id = dac["da_id"]
                     shdl_data.data.exec_id = self.execField["da_id"]
                     self.sdhl_pub.publish(shdl_data)
+                    print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+                    print "SHDL_DATA: "
+                    print shdl_data.data
+                    print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
                     if (c_switch < (c_wait - c_wait*0.1)):
                         switch_priority = "normal"
+                        print "#################################################"
+                        print "SWITCH"
+                        print "#################################################"
                         self.updateIrrField(dac,switch_priority,cost_file)
                     else:
                         print "candidate priority was less then executing task"
