@@ -4,6 +4,7 @@ import rospy
 import rospkg
 import math
 import tf
+import os, signal
 import turtlesim.msg
 from geometry_msgs.msg import Twist, Quaternion
 from visualization_msgs.msg import Marker
@@ -11,6 +12,7 @@ from tasker_msgs.srv import *
 from tiago_msgs.msg import Command
 from gazebo_msgs.msg import ModelState
 from tf.transformations import *
+import tiago_kb.places_xml as kb_p
 global vel
 
 vel = Twist()
@@ -20,6 +22,15 @@ def handle_actor_vel(msg):
 
 if __name__ == '__main__':
     global vel
+    places_xml_filename = rospy.get_param('/kb_places_xml')
+    sim_mode = str(rospy.get_param('/sim_mode'))
+    assert sim_mode in ['sim', 'gazebo', 'real']
+    if sim_mode in ['sim', 'gazebo']:
+        map_context = 'sim'
+    else:
+        map_context = 'real'
+    print 'Reading KB for places from file "' + places_xml_filename + '"'
+    kb_places = kb_p.PlacesXmlParser(places_xml_filename).getKB()
     vel = Twist()
     rospy.init_node('control_human',anonymous=True)
     actor_name = rospy.get_param('~actor_name')
@@ -30,7 +41,21 @@ if __name__ == '__main__':
         actor_id = last_actor_id+1
     actor_gender = rospy.get_param('~actor_gender')
     rospy.set_param('/last_actor_id', actor_id)
-    human_transform = rospy.get_param('~actor_init_pose')
+    # human_transform = rospy.get_param('~actor_init_pose')
+    pl = kb_places.getPlaceByName(actor_name, map_context)
+    if pl.getType() == 'point':
+        pt_dest = pl.getPt()
+        norm = pl.getN()
+        angle_dest = math.atan2(norm[1], norm[0])
+        print "angle_dest: ", angle_dest
+        pt = pt_dest
+        pt_dest = (pt_dest[0], pt_dest[1])
+        print "pt_dest: ", pt_dest
+        print 'UnderstandGoal place type: point'
+        print 'pt: {}, pt_dest: {}, norm: {}, angle_dest: {}'.format(pt, pt_dest, norm, angle_dest)
+    else:
+        os.kill(pid, signal.SIGHUP)
+    human_transform = [pt_dest[0], pt_dest[1], angle_dest]
     rospy.loginfo("Setting actor_init_pose: %f, %f, %f" % (human_transform[0], human_transform[1], human_transform[2]))
     rospy.Subscriber('/%s/vel' % actor_name,
                      Twist,
