@@ -465,6 +465,15 @@ class TaskHarmoniserAgent():
         else:
             return False
 
+    def filterDA_MT(self, DA):
+        print "IN FILTER: ", DA
+        if DA[1]["da_state"] == 'END':
+            return False
+        if DA[1]["da_type"] == "move_to_tasker" and DA[1]["priority"] != float('-inf'):
+            return True
+        else:
+            return False
+
     def schedule_new(self, cost_file):
         # print("\nSCHEDULE\n")
         self.lock.acquire()
@@ -528,14 +537,17 @@ class TaskHarmoniserAgent():
             DAset_GH = {}
             DAset_HF = {}
             DAset_BJ = {}
+            DAset_MT = {}
             cGH = {}
             cHF = {}
             cBJ = {}
+            cMT = {}
             # print "Q:"
             # print self.queue
             DAset_GH = filter(self.filterDA_GH, self.queue.items())
             DAset_HF = filter(self.filterDA_HF, self.queue.items())
             DAset_BJ = filter(self.filterDA_BJ, self.queue.items())
+            DAset_MT = filter(self.filterDA_MT, self.queue.items())
             # print "DAset_GH:"
             # print DAset_GH
             # print "DAset_T:"
@@ -547,6 +559,8 @@ class TaskHarmoniserAgent():
             q_HF = OrderedDict(sorted(DAset_HF, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_BJ = OrderedDict(sorted(DAset_BJ, 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
+            q_MT = OrderedDict(sorted(DAset_MT, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
@@ -600,6 +614,23 @@ class TaskHarmoniserAgent():
                         self.lock.release()
                         return
                     elif not self.filterDA_BJ([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return    
+            elif len(DAset_MT) > 0:
+                if self.debug ==True:
+                    print "Have MT"
+                cMT = next(iter(q_MT.items()))[1]
+                if self.debug_file == True:
+                    cost_file.write("\n"+"cMT:"+"\n")
+                    cost_file.write(str(cMT)+"\n")
+                dac = cMT 
+                if self.isExecuting():
+                    if self.filterDA_HF([None,self.execField]):
+                        self.lock.release()
+                        return
+                    elif not self.filterDA_MT([None,self.execField]):
                         switch_priority = "normal"
                         self.updateIrrField(dac,switch_priority,cost_file)
                         self.lock.release()
