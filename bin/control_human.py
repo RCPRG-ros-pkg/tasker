@@ -67,6 +67,10 @@ if __name__ == '__main__':
     gazebo_control_pub = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=10)
     cmd_pub = rospy.Publisher("/rico_cmd", Command, queue_size=10)
     gazebo_model_state = ModelState()
+    x_str = '\'x\': {} '.format(human_transform[0])
+    y_str = '\'y\': {} '.format(human_transform[1])
+    theta_str = '\'theta\': {} '.format(angle_dest)
+    rospy.set_param(actor_name+'/pose', '{'+x_str+y_str+theta_str+'}') #'x': \"%f\", 'y': \"%f\", 'theta': \"%f\"}" % human_transform[0] human_transform[1] angle_dest)
     gazebo_model_state.model_name="John"
     gazebo_model_state.pose.position.x = human_transform[0]
     gazebo_model_state.pose.position.y = human_transform[1]
@@ -253,8 +257,13 @@ if __name__ == '__main__':
             marker.lifetime = rospy.Duration()
             marker_pub.publish(marker)
             marker_pub.publish(marker_name)
+        theta = tf.transformations.quaternion_from_euler(0, 0, human_transform[2])
+        x_str = "'x': {}, ".format(human_transform[0])
+        y_str = '\'y\': {}, '.format(human_transform[1])
+        theta_str = '\'theta\': {} '.format(human_transform[2])
+        rospy.set_param(actor_name+'/pose', '{'+x_str+y_str+theta_str+'}') 
         br.sendTransform((human_transform[0], human_transform[1], 0),
-             tf.transformations.quaternion_from_euler(0, 0, human_transform[2]),
+             theta,
              rospy.Time.now(),
              actor_name,
              "map")
