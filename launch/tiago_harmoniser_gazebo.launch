@@ -5,7 +5,7 @@
 	<param name='harmonizer_name' value='$(arg harmonizer_name)'/>
 	<param name='sim_mode' value='$(arg sim_mode)'/>
 	<param name='kb_places_xml' value='$(arg kb_places_xml)'/>
-	<node name='$(arg harmonizer_name)' pkg='TaskER' type='task_harmonizer' output='screen'>
+	<node name='$(arg harmonizer_name)' pkg='tasker' type='task_harmonizer' output='screen'>
 	</node>
 	<node name='dictionary_service' pkg='pl_nouns' type='dictionary_service' output='screen'>
 	</node>
