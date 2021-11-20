@@ -89,7 +89,7 @@ if __name__ == '__main__':
     rospack.list() 
 
     # get the file path for rospy_tutorials
-    tasker_path = rospack.get_path('TaskER')
+    tasker_path = rospack.get_path('tasker')
     if actor_gender == "male":
         marker.mesh_resource = "file://"+tasker_path+"/makehuman/Male/male.dae"
     else:
