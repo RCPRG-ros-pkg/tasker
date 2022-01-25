@@ -13,25 +13,25 @@ from tiago_msgs.msg import Command
 from gazebo_msgs.msg import ModelState
 from tf.transformations import *
 import tiago_kb.places_xml as kb_p
+from fall_detection_integration.msg import FallData
 global vel
 
 vel = Twist()
 def handle_actor_vel(msg):
     global vel
     vel = msg
+def handle_ionis_msg(msg):
+    global human_transform
+    global actor_name
+    human_transform = [msg.x, msg.y, 0]
+    print "human position: ",human_transform
+    if msg.fall_alert_flag != 0:
+        rospy.set_param(actor_name+"/actor_posture", 'fell')
 
 if __name__ == '__main__':
-    global vel
-    places_xml_filename = rospy.get_param('/kb_places_xml')
-    sim_mode = str(rospy.get_param('/sim_mode'))
-    assert sim_mode in ['sim', 'gazebo', 'real']
-    if sim_mode in ['sim', 'gazebo']:
-        map_context = 'sim'
-    else:
-        map_context = 'real'
-    print 'Reading KB for places from file "' + places_xml_filename + '"'
-    kb_places = kb_p.PlacesXmlParser(places_xml_filename).getKB()
-    vel = Twist()
+    global human_transform
+    global actor_name
+ 
     rospy.init_node('control_human',anonymous=True)
     actor_name = rospy.get_param('~actor_name')
     if not rospy.has_param('/last_actor_id'):
@@ -42,25 +42,12 @@ if __name__ == '__main__':
     actor_gender = rospy.get_param('~actor_gender')
     rospy.set_param('/last_actor_id', actor_id)
     # human_transform = rospy.get_param('~actor_init_pose')
-    pl = kb_places.getPlaceByName(actor_name, map_context)
-    if pl.getType() == 'point':
-        pt_dest = pl.getPt()
-        norm = pl.getN()
-        angle_dest = math.atan2(norm[1], norm[0])
-        print "angle_dest: ", angle_dest
-        pt = pt_dest
-        pt_dest = (pt_dest[0], pt_dest[1])
-        print "pt_dest: ", pt_dest
-        print 'UnderstandGoal place type: point'
-        print 'pt: {}, pt_dest: {}, norm: {}, angle_dest: {}'.format(pt, pt_dest, norm, angle_dest)
-    else:
-        os.kill(pid, signal.SIGHUP)
-    human_transform = [pt_dest[0], pt_dest[1], angle_dest]
-    rospy.loginfo("Setting actor_init_pose: %f, %f, %f" % (human_transform[0], human_transform[1], human_transform[2]))
-    rospy.Subscriber('/%s/vel' % actor_name,
-                     Twist,
-                     handle_actor_vel
+    rospy.Subscriber('/fall_detection',
+                     FallData,
+                     handle_ionis_msg
                      )
+    human_transform = [0, 0, 0]
+    rospy.loginfo("Setting actor_init_pose: %f, %f, %f" % (human_transform[0], human_transform[1], human_transform[2]))
     actor_posture = rospy.set_param(actor_name+"/actor_posture", "stand")
     br = tf.TransformBroadcaster()
     marker_pub = rospy.Publisher("ellipse", Marker, queue_size=10)
@@ -69,7 +56,7 @@ if __name__ == '__main__':
     gazebo_model_state = ModelState()
     x_str = '\'x\': {} '.format(human_transform[0])
     y_str = '\'y\': {} '.format(human_transform[1])
-    theta_str = '\'theta\': {} '.format(angle_dest)
+    theta_str = '\'theta\': {} '.format(human_transform[2])
     rospy.set_param(actor_name+'/pose', '{'+x_str+y_str+theta_str+'}') #'x': \"%f\", 'y': \"%f\", 'theta': \"%f\"}" % human_transform[0] human_transform[1] angle_dest)
     gazebo_model_state.model_name="John"
     gazebo_model_state.pose.position.x = human_transform[0]
