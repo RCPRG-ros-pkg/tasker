@@ -985,8 +985,8 @@ class TaskHarmoniserAgent():
             print("SEND StartTask to initialised: ", interrupting["da_name"])
             srv_name = "/"+interrupting["da_name"]+"/TaskER/startTask"
             # print (srv_name)
-            print("\nSWITCHING: waiting for QUEUED startTask\n")
-            rospy.wait_for_service(srv_name, timeout=2)
+            # print("\nSWITCHING: waiting for QUEUED startTask\n")
+            # rospy.wait_for_service(srv_name, timeout=2)
             print "\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", interrupting["da_state"][0], "> state."
             while not interrupting["da_state"][0] in ["Wait", "Init"]:
                 if rospy.is_shutdown():
@@ -1000,7 +1000,16 @@ class TaskHarmoniserAgent():
                 self.set_DA_signal(da_name=interrupting["da_name"], signal = "start", data = [])
 
             print("\nSWITCHING: waiting for STARTED hold_now\n")
-            rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)
+
+            # rospy.wait_for_service(srv_name, timeout=2)
+            print "\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <", interrupting["da_state"][0], "> state."
+            while not interrupting["da_state"][0] in ["UpdateTask","ExecFSM"]:
+                if rospy.is_shutdown():
+                    return 
+                print "\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <", interrupting["da_state"][0], "> state."
+                rospy.sleep(0.5)
+
+            # rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)
             self.lock.acquire()
             # print("\n Making executing\n")
             self.makeExecuting()
