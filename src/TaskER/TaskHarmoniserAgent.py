@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from collections import OrderedDict
 from tasker_msgs.msg import *
 from tasker_msgs.srv import *
@@ -25,7 +27,7 @@ class TaskHarmoniserAgent():
         self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueData)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = True
+        self.debug = False
         self.debug_file = False
     def updateQueueData(self, data):
         global th
@@ -320,8 +322,11 @@ class TaskHarmoniserAgent():
             print cmd
         self.cmd_pub.publish(cmd)
 
-    def suspendDA(self):
-        self.set_DA_signal(da_name=self.execField["da_name"], signal = "susp", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", "0"])
+    def suspendDA(self, set_exemplary_susp_task = False):
+        if set_exemplary_susp_task:
+            self.set_DA_signal(da_name=self.execField["da_name"], signal = "susp", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", "0"])
+        else:
+            self.set_DA_signal(da_name=self.execField["da_name"], signal = "susp", data = [])
         while not rospy.is_shutdown():
             wait_flag = (self.isDAAlive_with_lock(self.execField) and (self.execField["da_state"][0]!="Wait"))
             if wait_flag:
@@ -462,6 +467,8 @@ class TaskHarmoniserAgent():
         self.lock.release()
         # print("\nSCHEDULED\n")
     def filterDA_GH(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["priority"] != float('-inf'):
@@ -469,6 +476,8 @@ class TaskHarmoniserAgent():
         else:
             return False
     def filterDA_HF(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["priority"] != float('-inf'):
@@ -477,6 +486,8 @@ class TaskHarmoniserAgent():
             return False
 
     def filterDA_BJ(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "bring_jar_tasker" and DA[1]["priority"] != float('-inf'):
@@ -485,7 +496,8 @@ class TaskHarmoniserAgent():
             return False
 
     def filterDA_MT(self, DA):
-        print "IN FILTER: ", DA
+        if self.debug ==True:
+            print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "move_to_tasker" and DA[1]["priority"] != float('-inf'):
@@ -494,7 +506,8 @@ class TaskHarmoniserAgent():
             return False
 
     def filterDA_BG(self, DA):
-        print "IN FILTER: ", DA
+        if self.debug ==True:
+            print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "bring_goods_tasker" and DA[1]["priority"] != float('-inf'):
@@ -926,7 +939,9 @@ class TaskHarmoniserAgent():
                     # while commanding DA stays in ["Wait", "init", "UpdateTask"] longer then max_sleep_counter after ['start','resume'] signal,
                     # terminate the commanding DA
                     if max_sleep_counter == sleep_counter:
-                        self.set_DA_signal(da_name=commanding["da_name"], signal = "terminate", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
+                        self.set_DA_signal(da_name=commanding["da_name"], signal = "terminate", data = ["priority", self._switch_priority,
+                                                            #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
+                                                            ])
                         while not rospy.is_shutdown():
                             print "[Switch] -- while sleep counter"
                             wait_flag = self.isDAAlive_with_lock(commanding)
@@ -944,7 +959,9 @@ class TaskHarmoniserAgent():
                     
                 if self.isDAAlive_with_lock(commanding):
                     print("SEND SUSPEND to commanding: ", commanding["da_id"])
-                    self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["rosrun", "TaskER", "exemplary_susp_task", "priority", self._switch_priority])
+                    self.set_DA_signal(da_name=commanding["da_name"], signal = "susp", data = ["priority", self._switch_priority,
+                                                            #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
+                                                            ])
 
                     r = rospy.Rate(5) # 10hz
                     # wait until exec DA terminates or swithes to wait state

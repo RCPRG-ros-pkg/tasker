@@ -53,7 +53,7 @@ class DynAgent:
     def __init__(self, da_name, da_id, da_type, ptf_csp, da_state_name):
 
         global debug
-        debug = True
+        debug = False
         self.name = da_name
         rospy.init_node(self.name)
         rospy.sleep(0.1)
@@ -308,8 +308,9 @@ class DynAgent:
                 # Publish diagnostic information 
                 diag = tiago_msgs.msg.DynAgentDiag()
                 diag.agent_name = self.name
+                rospy.sleep(0.5)
                 if self.startFlag:
-                    rospy.sleep(2) 
+                    # rospy.sleep(2) 
                     self.updateStatus() 
                     active_states = self.getActiveStates( self.main_sm ) 
                     for state_name, state_desc in active_states:
@@ -318,7 +319,7 @@ class DynAgent:
                 else:
                     diag.current_states.append("Init")
                     diag.descriptions.append( "desc" )
-                rospy.sleep(1)
+                
                 self.pub_diag.publish( diag )
             except Exception as e:
                 print 'Detected exception in dynamic agent'

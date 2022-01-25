@@ -168,7 +168,7 @@ class TaskHarmonizer:
         [interrupting, executing] = self.tha.getInterruptingAndExecuting()
         if task_spec.task_name == 'stop':
             if self.tha.isExecuting():
-                self.tha.suspendDA()
+                self.tha.suspendDA(set_exemplary_susp_task=False)
             else:
                 pass
         else:
