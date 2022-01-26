@@ -277,6 +277,9 @@ def main():
     print "switcher!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     scheduler.join()
     print "scheduler!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    tha.close()
+    del tha
+    print "tha!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 if __name__ == '__main__':
     main()
 

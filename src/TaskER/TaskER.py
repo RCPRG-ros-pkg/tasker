@@ -1,6 +1,10 @@
 
 from rcprg_smach import smach_rcprg
 import rospy
+import time
+
+def sleep_rate(rate):
+    time.sleep(1/rate)
 
 class TaskER(smach_rcprg.StateMachine):
     def __init__(self, da_state_name):
@@ -118,7 +122,7 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self._userdata = userdata
-            rate = rospy.Rate(self.tf_freq)
+            # rate = rospy.Rate(self.tf_freq)
             tf_result = None
             while tf_result is None:
                 susp_flag = self.is_suspension_flag()
@@ -130,7 +134,8 @@ class TaskER(smach_rcprg.StateMachine):
                 print "TF returned: ",tf_result
                 if susp_flag is not None:
                     break
-                rate.sleep()
+                sleep_rate(self.tf_freq)
+                # rate.sleep()
             return tf_result
         def transition_function(self, userdata):
             pass
@@ -177,7 +182,7 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self._userdata = userdata
-            rate = rospy.Rate(self.tf_freq)
+            # rate = rospy.Rate(self.tf_freq)
             tf_result = None
             while tf_result is None:
                 susp_flag = self.is_suspension_flag()
@@ -188,7 +193,8 @@ class TaskER(smach_rcprg.StateMachine):
                 print "TF returned: ",tf_result
                 if susp_flag is not None:
                     break
-                rate.sleep()
+                sleep_rate(self.tf_freq)
+                # rate.sleep()
             return tf_result
         def transition_function(self, userdata):
             pass
@@ -248,7 +254,7 @@ class TaskER(smach_rcprg.StateMachine):
                 # if not '/rico_task_harmonizer' in active_ros_nodes:
                 #     return 'terminate'
                 self.tasker_instance.wait_tf()
-                rospy.sleep(1)
+                time.sleep(1)
             return 'start'
 
     class UpdateTask(smach_rcprg.State):
@@ -259,8 +265,9 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self.tasker_instance.update_task_tf()
-            rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
-            print 'UpdateTask.execute'
+            if self.tasker_instance.isDebug() ==True:
+                rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
+                print 'UpdateTask.execute'
             #srv.shutdown()
             return 'ok'
         def is_suspension_flag(self):
@@ -294,7 +301,7 @@ class TaskER(smach_rcprg.StateMachine):
                         fsm_cmd = data[idx+1]
                 if self.preempt_requested() or fsm_cmd == 'terminate':
                     return 'terminate'
-                rospy.sleep(1)
+                time.sleep(1)
             return 'ok'
     class Cleanup(smach_rcprg.State):
         def __init__(self, tasker_instance, da_state_name):

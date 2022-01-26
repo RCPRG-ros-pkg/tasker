@@ -3,6 +3,7 @@
 from collections import OrderedDict
 from tasker_msgs.msg import *
 from tasker_msgs.srv import *
+from tasker_comm import THACommunicator
 import threading
 import time
 import subprocess
@@ -19,16 +20,41 @@ class TaskHarmoniserAgent():
         self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'da_state': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
+        self.tasker_communicator =  THACommunicator()
         self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
-        self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
+        #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
         self.execField = {}
         self.interruptField = {}
-        self. sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueData)
+        self.tha_is_running = True
+
+        print "starting cmd updateQueueDataThread thread"
+        self.thread_status_update = threading.Thread(target=self.updateQueueDataThread, args=(1,))
+        self.thread_status_update.start()
+        print "started cmd updateQueueDataThread thread"
+
+        #self.sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueDataThread)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = False
+        self.debug = True
         self.debug_file = False
+
+    def __del__(self):
+        self.tasker_communicator.close()
+        del self.tasker_communicator
+        print "\n\n\n\n DEL THA \n\n\n\n"
+        self.tha_is_running = False
+        self.thread_status_update.join()
+
+    def close(self):
+        self.tasker_communicator.close()
+        
+    def updateQueueDataThread(self, args):
+
+        while not rospy.is_shutdown() and self.tha_is_running:
+            msg = self.tasker_communicator.sub_status()
+            self.updateQueueData(msg)
+
     def updateQueueData(self, data):
         global th
         if self.debug ==True:
@@ -313,6 +339,7 @@ class TaskHarmoniserAgent():
         self.makeInterrupting(next_da["da_id"])
         if not self.switchIndicator.isSet():
             self.sendIndicator(switch_priority)
+
     def set_DA_signal(self, da_name, signal, data=[]):
         if self.debug ==True:
             print "set_DA_signal: "
@@ -320,7 +347,9 @@ class TaskHarmoniserAgent():
         cmd = CMD(recipient_name = da_name, cmd = signal, data = data)
         if self.debug ==True:
             print cmd
-        self.cmd_pub.publish(cmd)
+        
+        self.tasker_communicator.pub_cmd(cmd)
+        #self.cmd_pub.publish(cmd)
 
     def suspendDA(self, set_exemplary_susp_task = False):
         if set_exemplary_susp_task:
@@ -350,15 +379,9 @@ class TaskHarmoniserAgent():
                 pass
                 # print "THA -> DA <"+da["da_name"]+"> in END state"
             return False
-        if not rosnode.rosnode_ping("/"+da["da_name"], 1):
-            rospy.sleep(0.2)
-            if not rosnode.rosnode_ping("/"+da["da_name"], 1):
-                da["ping_count"] = da["ping_count"] + 1
-            if da["ping_count"] > 4:
-                # print("\n\n\nDA DEAD\n\n\n")
-                return False         
-        da["ping_count"] = 0       
-        # print("\n\n\nDA ALIVE\n\n\n")
+        p = self.DA_processes[da["da_id"]]['process']
+        if not p.poll() is None :
+                return False        
         return True
 
     def isDAAlive_with_lock(self, da):
@@ -372,16 +395,9 @@ class TaskHarmoniserAgent():
                 # print "THA -> DA <"+da["da_name"]+"> in END state"
             self.lock.release()
             return False
-        if not rosnode.rosnode_ping("/"+da["da_name"], 1):
-            rospy.sleep(0.2)
-            if not rosnode.rosnode_ping("/"+da["da_name"], 1):
-                da["ping_count"] = da["ping_count"] + 1
-            if da["ping_count"] > 4:
-                # print("\n\n\nDA DEAD\n\n\n")
-                self.lock.release()
-                return False                
-        # print("\n\n\nDA ALIVE\n\n\n")
-        da["ping_count"] = 0       
+        p = self.DA_processes[da["da_id"]]['process']
+        if not p.poll() is None :
+                return False                 
         self.lock.release()
         return True
 
@@ -395,6 +411,7 @@ class TaskHarmoniserAgent():
             if self.debug ==True:
                 print("\n\n\nLOST SERVICE\n\n\n")
             return False
+
     def schedule(self):
 
         # print("\nSCHEDULE\n")
@@ -430,10 +447,12 @@ class TaskHarmoniserAgent():
                 highest_da = next(iter(q.items()))[1]
                 if self.execField["priority"] < highest_da["priority"]:
                     print "WAITING FOR CONDITIONS"
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', timeout=2)
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
+                    # rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', timeout=2)
+                    # get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
                     trig = SuspendConditionsRequest()
-                    resp = get_susp_cond(highest_da["scheduleParams"].final_resource_state)
+
+                    resp = self.tasker_communicator.call_sus_cond(highest_da["scheduleParams"].final_resource_state)
+                    # resp = get_susp_cond(highest_da["scheduleParams"].final_resource_state)
                     print "HAVE CONDITIONS"
                     self.execField["priority"] = self.execField["scheduleParams"].cost + resp.cost_per_sec*highest_da["scheduleParams"].completion_time
             self.updateQueue(q)
@@ -724,24 +743,32 @@ class TaskHarmoniserAgent():
                         print "REQUESTING reqParam services"
                     # Exec cost for suspension behaviour and task continue starting from DAC final_resource_state -- cc_exec
                     #       , incremental (per sec) cost while waiting for start -- ccps_exec
-                    while (not rospy.is_shutdown()) and not self.hasService('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions'):
-                        print "Schedule thread waits for service: "+ '/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions'
-                        rospy.sleep(0.1)
-                    rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', timeout=2)
-                    get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
-                    trig = SuspendConditionsRequest()
-                    resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
+
+                    # while (not rospy.is_shutdown()) and not self.hasService('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions'):
+                    #     print "Schedule thread waits for service: "+ '/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions'
+                    #     rospy.sleep(0.1)
+                    # rospy.wait_for_service('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', timeout=2)
+                    # get_susp_cond = rospy.ServiceProxy('/'+self.execField["da_name"]+'/TaskER/get_suspend_conditions', SuspendConditions)
+                    # trig = SuspendConditionsRequest()
+                    # resp = get_susp_cond(dac["scheduleParams"].final_resource_state)
+
+                    resp = self.tasker_communicator.call_sus_cond(highest_da["scheduleParams"].final_resource_state, highest_da["da_name"])
                     cc_exec = resp.cost_to_resume
                     ccps_exec = resp.cost_per_sec
                     # DAC cost while switched after EXEC finishes -- cc_dac, incremental (per sec) cost while waiting for start -- ccps_dac
             #         ccps_exec = resp.cost_per_sec
-                    while (not rospy.is_shutdown()) and not self.hasService('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions'):
-                        print "Schedule thread waits for service: "+ '/'+dac["da_name"]+'/TaskER/get_cost_on_conditions'
-                        rospy.sleep(0.1)
-                    rospy.wait_for_service('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', timeout=2)
-                    get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', CostConditions)
-                    trig = CostConditionsRequest()
-                    resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
+
+                    # while (not rospy.is_shutdown()) and not self.hasService('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions'):
+                    #     print "Schedule thread waits for service: "+ '/'+dac["da_name"]+'/TaskER/get_cost_on_conditions'
+                    #     rospy.sleep(0.1)
+                    # rospy.wait_for_service('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', timeout=2)
+                    # get_cost_cond = rospy.ServiceProxy('/'+dac["da_name"]+'/TaskER/get_cost_on_conditions', CostConditions)
+                    # trig = CostConditionsRequest()
+                    # resp = get_cost_cond(self.execField["scheduleParams"].final_resource_state)
+
+                    resp = self.tasker_communicator.call_cost_cond(self.execField["scheduleParams"].final_resource_state, self.execField["da_name"])
+
+
                     cc_dac = resp.cost_to_complete
                     ccps_dac = dac["scheduleParams"].cost_per_sec
                     # Calculation of costs to switch and not switch
