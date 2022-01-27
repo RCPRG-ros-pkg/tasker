@@ -254,7 +254,7 @@ class TaskER(smach_rcprg.StateMachine):
                 # if not '/rico_task_harmonizer' in active_ros_nodes:
                 #     return 'terminate'
                 self.tasker_instance.wait_tf()
-                time.sleep(1)
+                sleep_rate(10)
             return 'start'
 
     class UpdateTask(smach_rcprg.State):
@@ -296,12 +296,13 @@ class TaskER(smach_rcprg.StateMachine):
             while not fsm_cmd == "start":
                 data = userdata.susp_data.getData()
                 for idx in range(0, len(data), 2):
-                    print data[idx]
+                    if self.tasker_instance.isDebug() ==True:
+                        print data[idx]
                     if data[idx] == 'cmd':
                         fsm_cmd = data[idx+1]
                 if self.preempt_requested() or fsm_cmd == 'terminate':
                     return 'terminate'
-                time.sleep(1)
+                sleep_rate(10)
             return 'ok'
     class Cleanup(smach_rcprg.State):
         def __init__(self, tasker_instance, da_state_name):

@@ -951,6 +951,7 @@ class TaskHarmoniserAgent():
         # print("\nSCHEDULED\n")
 
     def switchDA(self):
+        r = rospy.Rate(5)
         self.switchIndicator.wait()
         if self.isInterrupting():
             print("\nSWITCHING\n")
@@ -982,7 +983,7 @@ class TaskHarmoniserAgent():
                                 self.lock.release()
                                 break
                         break
-                    rospy.sleep(1)
+                    r.sleep()
                     
                 if self.isDAAlive_with_lock(commanding):
                     print("SEND SUSPEND to commanding: ", commanding["da_id"])
@@ -990,7 +991,7 @@ class TaskHarmoniserAgent():
                                                             #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
                                                             ])
 
-                    r = rospy.Rate(5) # 10hz
+                     # 10hz
                     # wait until exec DA terminates or swithes to wait state
                     while not rospy.is_shutdown():
                         wait_flag = (self.isDAAlive_with_lock(commanding) and (commanding["da_state"][0]!="Wait"))
@@ -1019,7 +1020,7 @@ class TaskHarmoniserAgent():
                 if rospy.is_shutdown():
                     return 
                 print "\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", interrupting["da_state"][0], "> state."
-                rospy.sleep(0.5)
+                r.sleep()
 
             if interrupting["da_state"][0]=="Wait":
                 self.set_DA_signal(da_name=interrupting["da_name"], signal = "resume", data = [])
