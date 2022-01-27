@@ -12,7 +12,7 @@ from tasker_msgs.srv import *
 from tiago_msgs.msg import Command
 from gazebo_msgs.msg import ModelState
 from tf.transformations import *
-import tiago_kb.places_xml as kb_p
+import rcprg_kb.places_xml as kb_p
 global vel
 
 vel = Twist()
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             gazebo_model_state.pose.orientation = Quaternion(rot[0],rot[1],rot[2],rot[3])
             fell_cmd = Command()
             fell_cmd.query_text=""
-            fell_cmd.intent_name = "HF"
+            fell_cmd.intent_name = "HFA"
             fell_cmd.param_names = ["human_name"]
             fell_cmd.param_values = [actor_name]
             marker.ns = "human"
