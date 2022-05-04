@@ -12,7 +12,7 @@ from tasker_msgs.srv import *
 from tiago_msgs.msg import Command
 from gazebo_msgs.msg import ModelState
 from tf.transformations import *
-import tiago_kb.places_xml as kb_p
+import rcprg_kb.places_xml as kb_p
 global vel
 
 vel = Twist()
