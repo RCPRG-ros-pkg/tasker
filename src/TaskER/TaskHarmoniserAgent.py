@@ -36,7 +36,7 @@ class TaskHarmoniserAgent():
         #self.sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueDataThread)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = True
+        self.debug = False
         self.debug_file = False
 
     def __del__(self):
@@ -524,6 +524,16 @@ class TaskHarmoniserAgent():
         else:
             return False
 
+    def filterDA_BGN(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
+        if DA[1]["da_state"] == 'END':
+            return False
+        if DA[1]["da_type"] == "bring_goods_new_tasker" and DA[1]["priority"] != float('-inf'):
+            return True
+        else:
+            return False
+
     def filterDA_BG(self, DA):
         if self.debug ==True:
             print "IN FILTER: ", DA
@@ -599,11 +609,14 @@ class TaskHarmoniserAgent():
             DAset_BJ = {}
             DAset_MT = {}
             DAset_BG = {}
+            DAset_BGN = {}
+            
             cGH = {}
             cHF = {}
             cBJ = {}
             cMT = {}
             cBG = {}
+            cBGN = {}
             # print "Q:"
             # print self.queue
             DAset_GH = filter(self.filterDA_GH, self.queue.items())
@@ -611,6 +624,8 @@ class TaskHarmoniserAgent():
             DAset_BJ = filter(self.filterDA_BJ, self.queue.items())
             DAset_MT = filter(self.filterDA_MT, self.queue.items())
             DAset_BG = filter(self.filterDA_BG, self.queue.items())
+            DAset_BGN = filter(self.filterDA_BGN, self.queue.items())
+            
             # print "DAset_GH:"
             # print DAset_GH
             # print "DAset_T:"
@@ -626,6 +641,8 @@ class TaskHarmoniserAgent():
             q_MT = OrderedDict(sorted(DAset_MT, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_BG = OrderedDict(sorted(DAset_BG, 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
+            q_BGN = OrderedDict(sorted(DAset_BGN, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
@@ -718,7 +735,24 @@ class TaskHarmoniserAgent():
                         switch_priority = "normal"
                         self.updateIrrField(dac,switch_priority,cost_file)
                         self.lock.release()
-                        return    
+                        return
+            elif len(DAset_BGN) > 0:
+                if self.debug ==True:
+                    print "Have BGN"
+                cBGN = next(iter(q_BGN.items()))[1]
+                if self.debug_file == True:
+                    cost_file.write("\n"+"cBGN:"+"\n")
+                    cost_file.write(str(cBGN)+"\n")
+                dac = cBGN 
+                if self.isExecuting():
+                    if self.filterDA_HF([None,self.execField]):
+                        self.lock.release()
+                        return
+                    elif not self.filterDA_BGN([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return  
             else:
                 if self.isExecuting():
                     if not self.execField["da_type"] == dac["da_type"]:
