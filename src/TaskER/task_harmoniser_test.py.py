@@ -17,7 +17,7 @@ da_name = 'da1'
 tasker_communicator =  DACommunicator(da_name, None, None)
 
 tha = TaskHarmoniserAgent.TaskHarmoniserAgent(task_type_priority_mapping)
-for i in range(10):
+for i in range(20):
     task_type_spec = random.choice(task_type_priority_mapping)
     print(task_type_spec)
     da_id = tha.getNextID()

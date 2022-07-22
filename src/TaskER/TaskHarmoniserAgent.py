@@ -112,6 +112,7 @@ class TaskHarmoniserAgent(object):
         rec = RequestTable.TaskerReqest(ID=added, huid=da_name, shdl_rules=shdl_rules, req_time=req_time, plan_args={'plan':'static', 'da_type':da_type}, priority=-1)
         rec.state = ['Init']
         rec.last_cmd_sent =None
+        self.set_priority(rec)
         self.request_table.addRecord(rec)    
         # da = {'da_id': added, 'da_name': da_name, 'da_type': da_type, 'da_state': ["Init"], 'last_cmd_sent': None,  'priority': float('-inf'), 'ping_count': 0, 'scheduleParams': ScheduleParams()}
         # self.queue[added] = da
@@ -119,12 +120,20 @@ class TaskHarmoniserAgent(object):
     # def updateDA(self, da_id, da_name, da_type, da_state, priority, scheduleParams):
     #     # type: (int, int, ScheduleParams) -> None
     #     da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'da_state': da_state, 'priority': priority, 'ping_count': 0, 'scheduleParams': scheduleParams}
-    def updateDA(self, da):
-        # type: (dict) -> None
+    def set_priority(self, da):
+
         task_type_spec = filter(lambda x: da.plan_args['da_type']==x.get('task_type'),self.task_type_priority_map)[0]
         print(task_type_spec)
         print(task_type_spec['priority'])
         da.priority = task_type_spec['priority']
+
+    def updateDA(self, da):
+        # type: (dict) -> None
+        self.set_priority(da)
+        # task_type_spec = filter(lambda x: da.plan_args['da_type']==x.get('task_type'),self.task_type_priority_map)[0]
+        # print(task_type_spec)
+        # print(task_type_spec['priority'])
+        # da.priority = task_type_spec['priority']
         self.request_table.updateRecord(da)
         # self.queue[da["da_id"]] = da
     def removeDA(self, da):
