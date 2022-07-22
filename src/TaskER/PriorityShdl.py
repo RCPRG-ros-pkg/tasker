@@ -114,72 +114,89 @@ class TimeSlot:
 #         return None
 
 # Function to schedule jobs to maximize profit
-def scheduleJobs(jobs, T):
- 
-    # stores the maximum profit that can be earned by scheduling jobs
-    profit = 0
- 
-    # list to store used and unused slots info
-    day_slot = TimeSlot(datetime.combine(date.today(), datetime.min.time()), datetime.combine(date.today(), datetime.max.time()))
-    day_slot.print_slots()
-    # arrange the jobs in decreasing order of their profits
-    jobs.sort(key=lambda x: x.profit, reverse=True)
-    j_slot = TimeSlot(state=True)
-    # consider each job in decreasing order of their profits
-    slots = []
-    profit = 0
-    for job in jobs:
-        # search for the next free slot and map the task to that slot
-        # for s in reversed(range(job.deadline)):
-        print ("JOB: "+str(job.taskId)+" ----"+str(job.deadline))
-        j_slot = day_slot.get_slot_by_datetime(job.deadline, job.burstTime)
-        # print("j_slot ", j_slot)
-        if j_slot == None:
-            print("Cannot book slot")
-        else:
-            my_slot = j_slot.bookSlot(job.deadline, job.burstTime, job.taskId)
-            slots.append(my_slot)
-            profit += job.profit
-            # print (str(my_slot.start)+">>"+str(my_slot.stop))
-        day_slot.print_slots()
-        print()
-        # while j_slot.state:
-        #     j_slot = day_slot.get_slot_by_datetime(job.deadline)
+class PriorityScheduler():
+    def __init__(self):
+        self.jobs = []
 
-        # if j_slot.state:
-        #     if j < T and slot[j] == -1:
-        #         slot[j] = job.taskId
-        #         profit += job.profit
-        #         break
+    def addJob(self, job):
+        self.jobs.append(job)
+
+    class Schedule():
+        def __init__(self):
+            self.scheduled = []
+            self.rejected = []
+    def scheduleJobs(self):
+    
+        # stores the maximum profit that can be earned by scheduling jobs
+        profit = 0
+    
+        # list to store used and unused slots info
+        day_slot = TimeSlot(datetime.combine(date.today(), datetime.min.time()), datetime.combine(date.today(), datetime.max.time()))
+        day_slot.print_slots()
+        # arrange the jobs in decreasing order of their profits
+        self.jobs.sort(key=lambda x: x.profit, reverse=True)
+        j_slot = TimeSlot(state=True)
+        # consider each job in decreasing order of their profits
+        slots = []
+        profit = 0
+        shdl_result = self.Schedule()
+        for job in self.jobs:
+            # search for the next free slot and map the task to that slot
+            # for s in reversed(range(job.deadline)):
+            print ("JOB: "+str(job.taskId)+" ----"+str(job.deadline))
+            j_slot = day_slot.get_slot_by_datetime(job.deadline, job.burstTime)
+            # print("j_slot ", j_slot)
+            if j_slot == None:
+                shdl_result.rejected.append(job.taskId)
+                print("Cannot book slot")
+            else:
+                my_slot = j_slot.bookSlot(job.deadline, job.burstTime, job.taskId)
+                shdl_result.scheduled.append(my_slot)
+                profit += job.profit
+                # print (str(my_slot.start)+">>"+str(my_slot.stop))
+            day_slot.print_slots()
+            print()
+            # while j_slot.state:
+            #     j_slot = day_slot.get_slot_by_datetime(job.deadline)
+
+            # if j_slot.state:
+            #     if j < T and slot[j] == -1:
+            #         slot[j] = job.taskId
+            #         profit += job.profit
+            #         break
+    
+        # print the scheduled jobs
+        print('The scheduled jobs are:')
+        for i in shdl_result.scheduled:
+            print(str(i.start)+">>"+str(i.stop)+" ---->"+str(i.jobID))
+        print('The rejected jobs are:')
+        for i in shdl_result.rejected:
+            print(str(i))
+    
+        # print total profit that can be earned
+        print('The total profit earned is', profit)
+        return shdl_result
+    
  
-    # print the scheduled jobs
-    print('The scheduled jobs are:')
-    for i in slots:
-        print(str(i.start)+">>"+str(i.stop)+" ---->"+str(i.jobID))
+# if __name__ == '__main__':
  
-    # print total profit that can be earned
-    print('The total profit earned is', profit)
+#     # List of given jobs. Each job has an identifier, a deadline, and
+#     # profit associated with it
+#     jobs = [
+#         Job(1, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=9), 15, timedelta(minutes=3)), 
+#         Job(2, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 2, timedelta(minutes=1)), 
+#         Job(3, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 18, timedelta(minutes=2)), 
+#         Job(4, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=10), 1, timedelta(minutes=3)), 
+#         Job(5, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 25, timedelta(minutes=5)),
+#         Job(6, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 20, timedelta(minutes=1)), 
+#         Job(7, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 8, timedelta(minutes=1)), 
+#         Job(8, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=7), 10, timedelta(minutes=1)), 
+#         Job(9, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 12, timedelta(minutes=10)), 
+#         Job(10, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=3), 5, timedelta(minutes=6))
+#     ]
  
+#     # stores the maximum deadline that can be associated with a job
+#     T = 15
  
-if __name__ == '__main__':
- 
-    # List of given jobs. Each job has an identifier, a deadline, and
-    # profit associated with it
-    jobs = [
-        Job(1, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=9), 15, timedelta(minutes=3)), 
-        Job(2, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 2, timedelta(minutes=1)), 
-        Job(3, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 18, timedelta(minutes=2)), 
-        Job(4, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=10), 1, timedelta(minutes=3)), 
-        Job(5, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 25, timedelta(minutes=5)),
-        Job(6, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 20, timedelta(minutes=1)), 
-        Job(7, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 8, timedelta(minutes=1)), 
-        Job(8, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=7), 10, timedelta(minutes=1)), 
-        Job(9, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 12, timedelta(minutes=10)), 
-        Job(10, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=3), 5, timedelta(minutes=6))
-    ]
- 
-    # stores the maximum deadline that can be associated with a job
-    T = 15
- 
-    # schedule jobs and calculate the maximum profit
-    scheduleJobs(jobs, T)
+#     # schedule jobs and calculate the maximum profit
+#     scheduleJobs(jobs, T)
