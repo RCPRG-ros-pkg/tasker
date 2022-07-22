@@ -12,8 +12,10 @@ from std_srvs.srv import Trigger, TriggerRequest
 import rosnode
 import rosservice
 import RequestTable
-class TaskHarmoniserAgent():
-    def __init__(self):
+from datetime import datetime, timedelta
+import random
+class TaskHarmoniserAgent(object):
+    def __init__(self, task_type_priority_map={}, debug=False):
 
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
@@ -24,10 +26,12 @@ class TaskHarmoniserAgent():
         self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
         #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
-        self.execField = {}
-        self.interruptField = {}
+        self.execField = None
+        self.interruptField = None
         self.tha_is_running = True
         self.request_table = RequestTable.RequestTable()
+        self.task_type_priority_map = task_type_priority_map
+        
         print ("starting cmd updateQueueDataThread thread")
         self.thread_status_update = threading.Thread(target=self.updateQueueDataThread, args=(1,))
         self.thread_status_update.start()
@@ -36,23 +40,26 @@ class TaskHarmoniserAgent():
         #self.sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueDataThread)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = True
+        self.debug = debug
         self.debug_file = False
 
     def __del__(self):
         self.tasker_communicator.close()
         del self.tasker_communicator
-        print ("\n\n\n\n DEL THA \n\n\n\n")
         self.tha_is_running = False
         self.thread_status_update.join()
 
     def close(self):
         self.tasker_communicator.close()
+        self.tha_is_running = False
+        self.thread_status_update.join()
         
     def updateQueueDataThread(self, args):
 
         while not rospy.is_shutdown() and self.tha_is_running:
             msg = self.tasker_communicator.sub_status()
+            if msg == None:
+                break
             self.updateQueueData(msg)
 
     def updateQueueData(self, data):
@@ -67,8 +74,10 @@ class TaskHarmoniserAgent():
             #     self.removeDA(self.queue[data.da_id])
             else:
                 raise Exception('This DA: <'+data.da_name+'> is not found in THA queue')
-        self.request_table.get_requst(data.da_id).shdl_params(data.schedule_params)
-        self.request_table.get_requst(data.da_id).state(data.da_state)
+        da = self.request_table.get_requst(data.da_id)
+        da.shdl_params = data.schedule_params
+        da.state = data.da_state
+        self.updateDA(da)
 
         # self.updateScheduleParams(data.da_id, data.schedule_params)
         # priority = self.computePriority(data.schedule_params)
@@ -85,7 +94,7 @@ class TaskHarmoniserAgent():
         args.append( da_name )
         args.append( 'da_type' )
         args.append( da_type )
-        print 'args:', args
+        print ('args:', args)
         run_cmd = [] 
         #args = ' '.join(map(str, args))
         run_cmd.append(executable)
@@ -97,10 +106,10 @@ class TaskHarmoniserAgent():
         self.DA_processes[da_id] = row
         self.addDA(da_id,da_name, da_type)
 
-    def addDA(self, added, da_name, da_type):
+    def addDA(self, added, da_name, da_type, shdl_rules, req_time):
         # type: (int) -> None
         self.lock.acquire()    
-        rec = RequestTable.TaskerReqest(ID=added, huid=da_name, plan_args={'plan':'static', 'da_type':da_type}, priority=float('-inf'))
+        rec = RequestTable.TaskerReqest(ID=added, huid=da_name, shdl_rules=shdl_rules, req_time=req_time, plan_args={'plan':'static', 'da_type':da_type}, priority=-1)
         rec.state = ['Init']
         rec.last_cmd_sent =None
         self.request_table.addRecord(rec)    
@@ -112,6 +121,10 @@ class TaskHarmoniserAgent():
     #     da = {'da_id': da_id, 'da_name': da_name, 'da_type': da_type, 'da_state': da_state, 'priority': priority, 'ping_count': 0, 'scheduleParams': scheduleParams}
     def updateDA(self, da):
         # type: (dict) -> None
+        task_type_spec = filter(lambda x: da.plan_args['da_type']==x.get('task_type'),self.task_type_priority_map)[0]
+        print(task_type_spec)
+        print(task_type_spec['priority'])
+        da.priority = task_type_spec['priority']
         self.request_table.updateRecord(da)
         # self.queue[da["da_id"]] = da
     def removeDA(self, da):
@@ -507,8 +520,34 @@ class TaskHarmoniserAgent():
     #     self.lock.release()
     #     # print("\nSCHEDULED\n")
 
+    def plan(self, plan_args):
+        return None, timedelta(minutes=random.randint(2,10))
+
+    def call_planner(self):
+        for req in self.request_table.items():
+            plan, burst_time = self.plan(req[1].plan_args)
+            req[1].set_burst_time(burst_time)
+    
     def schedule_smit(self, cost_file):
-        
+        #
+        # plan to get burst times for tke tasks
+        #
+        self.call_planner()
+        self.request_table.evaluate_all_rules()
+        priority_schedule = self.request_table.schedule_with_priority()
+        candidate = None
+        for task in priority_schedule:
+            if task.within(datetime.now()):
+                candidate = task.jobID
+        if candidate == None:
+            return
+        if candidate != self.execField and candidate != self.interruptField \
+                    and self.request_table.get_requst(candidate).priority != -1:
+            self.updateIrrField(self.request_table.get_requst(candidate), switch_priority='normal', cost_file=cost_file)
+            
+
+
+
     def filterDA_GH(self, DA):
         if self.debug ==True:
             print ("IN FILTER: ", DA)
@@ -814,7 +853,7 @@ class TaskHarmoniserAgent():
                     self.sdhl_pub.publish(shdl_data)
                     print ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
                     print ("SHDL_DATA: ")
-                    print shdl_data.data
+                    print (shdl_data.data)
                     print ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
                     if (c_switch < (c_wait - c_wait*0.1)):
                         switch_priority = "normal"

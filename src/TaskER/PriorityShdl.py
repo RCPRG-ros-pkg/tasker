@@ -14,7 +14,7 @@ class Job:
 class TimeSlot:
     def __init__(self, start=datetime.combine(date.today(), datetime.min.time()), 
                         stop=datetime.combine(date.today(), datetime.max.time()), 
-                        state=False, superSlot=None, job_id=None):
+                        state=False, superSlot=None, job_id=None, debug=False):
         isinstance(start, datetime)
         isinstance(stop, datetime)
         # True is used, False is free
@@ -28,6 +28,7 @@ class TimeSlot:
         self.print_indent = 0
         self.minimalSlot = timedelta(seconds=5)
         self.jobID = job_id
+        self.debug = debug
 
     def getDuration(self):
         return self.stop - self.start
@@ -42,7 +43,8 @@ class TimeSlot:
                 self.jobID = job_id
                 return self
             pre_slot = TimeSlot(self.start, deadline_timeStamp-burst_time, state=False, superSlot=self)
-            print("pre: "+str(pre_slot.getDuration()))
+            if self.debug == True:
+                print("pre: "+str(pre_slot.getDuration()))
             if pre_slot.getDuration() > self.minimalSlot:
                 self.subSlots.append(pre_slot)
             booked_slot = TimeSlot(deadline_timeStamp-burst_time, deadline_timeStamp, state=True, superSlot=self, job_id=job_id)
@@ -54,10 +56,11 @@ class TimeSlot:
             raise Exception("Requested division of TimeSlot in TimeStamp out of the TimeSlot")
         return booked_slot
     
-    def within(self, timeStamp, burstTime):
+    def within(self, timeStamp, burstTime=timedelta(seconds=0)):
         isinstance(timeStamp, datetime)
         isinstance(burstTime, timedelta)
-        # print("ts: ", timeStamp, "bt: ", burstTime, "d: ", self.getDuration())
+        if self.debug == True:
+            print("ts: ", timeStamp, "bt: ", burstTime, "d: ", self.getDuration())
         if (timeStamp - burstTime >= self.start) and (timeStamp <= self.stop) \
                     and (self.getDuration()>=burstTime):
             # print("within")
@@ -115,8 +118,9 @@ class TimeSlot:
 
 # Function to schedule jobs to maximize profit
 class PriorityScheduler():
-    def __init__(self):
+    def __init__(self, debug =False):
         self.jobs = []
+        self.debug = debug
 
     def addJob(self, job):
         self.jobs.append(job)
@@ -132,7 +136,7 @@ class PriorityScheduler():
     
         # list to store used and unused slots info
         day_slot = TimeSlot(datetime.combine(date.today(), datetime.min.time()), datetime.combine(date.today(), datetime.max.time()))
-        day_slot.print_slots()
+        # day_slot.print_slots()
         # arrange the jobs in decreasing order of their profits
         self.jobs.sort(key=lambda x: x.profit, reverse=True)
         j_slot = TimeSlot(state=True)
@@ -143,18 +147,22 @@ class PriorityScheduler():
         for job in self.jobs:
             # search for the next free slot and map the task to that slot
             # for s in reversed(range(job.deadline)):
-            print ("JOB: "+str(job.taskId)+" ----"+str(job.deadline))
+            if self.debug == True:
+                print ("JOB: "+str(job.taskId)+" ----"+str(job.deadline))
             j_slot = day_slot.get_slot_by_datetime(job.deadline, job.burstTime)
             # print("j_slot ", j_slot)
             if j_slot == None:
                 shdl_result.rejected.append(job.taskId)
-                print("Cannot book slot")
+                if self.debug == True:
+                    print("Cannot book slot")
             else:
                 my_slot = j_slot.bookSlot(job.deadline, job.burstTime, job.taskId)
                 shdl_result.scheduled.append(my_slot)
                 profit += job.profit
                 # print (str(my_slot.start)+">>"+str(my_slot.stop))
-            day_slot.print_slots()
+            
+            if self.debug == True:
+                day_slot.print_slots()
             print()
             # while j_slot.state:
             #     j_slot = day_slot.get_slot_by_datetime(job.deadline)

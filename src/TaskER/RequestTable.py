@@ -61,7 +61,7 @@ class ScheduleRules():
         return str(self.list)
 
 class TaskerReqest():
-    def __init__(self, ID, huid, plan_args, shdl_rules, priority, req_time):
+    def __init__(self, ID, huid, plan_args, shdl_rules, priority, req_time, debug= False):
         assert isinstance(req_time, datetime)
         assert isinstance(shdl_rules, ScheduleRules)
         assert isinstance(priority, int)
@@ -82,6 +82,7 @@ class TaskerReqest():
         self.replan_count = 0
         self.state = None
         self.switch_priority = None
+        self.debug = debug
 
     def __str__(self):
         s = ppretty(self)
@@ -99,7 +100,8 @@ class TaskerReqest():
         # print ("RULE TYPES: ",self.shdl_rules.get_shdl_rules_types() )
         # print ("rself.burst_time: ", self.burst_time)
         if 'at' in self.shdl_rules.get_shdl_rules_types():
-            print ("deadline: ", self.shdl_rules.get_value_from_type('at'))
+            if self.debug == True:
+                print ("deadline: ", self.shdl_rules.get_value_from_type('at'))
             self.deadline = self.shdl_rules.get_value_from_type('at')
             self.start_time  = self.deadline - self.burst_time
 
@@ -161,7 +163,7 @@ class TaskerReqest():
                         profit=self.priority, burstTime=self.burst_time)
 
 class RequestTable():
-    def __init__(self):
+    def __init__(self, debug = False):
         self.dictionary = {}
         self.last_id = 0
         self.free_id = [0]
@@ -171,6 +173,10 @@ class RequestTable():
         self.gantt_view = None
         self.gantt_data = []
         self.shdl_result = None
+        self.debug = debug
+    
+    def items(self):
+        return self.dictionary.items()
         # self.initialiseGantt()
         # self.updateGantt()
 
@@ -181,7 +187,8 @@ class RequestTable():
         all_data_frame = []
         rejected_data_frame = []
         accepted_data_frame = []
-        print (self.shdl_result)
+        if self.debug == True:
+            print (self.shdl_result)
         for record in self.dictionary:
             is_rejected = ''
             if self.shdl_result != None:
@@ -201,12 +208,13 @@ class RequestTable():
                 show_data = all_data_frame
             else:
                 show_data = accepted_data_frame
-
-            print ("DATA: ", show_data)
+            if self.debug == True:
+                print ("DATA: ", show_data)
         self.gantt_data = pd.DataFrame(show_data)
         if len(self.gantt_data) > 0:
             self.gantt_plot = px.timeline(self.gantt_data, x_start="Start", x_end="Finish", y="Task", height=600, width=800, color="Priority", text="Rejected")
             # self.gantt_plot.update_traces(textposition='outside')
+            self.gantt_plot.add_vline(x=datetime.now(), line_width=3, line_color="red")#, annotation_text=["NOW"])
             if with_rejected:
                 plotly.offline.plot(self.gantt_plot, filename='/tmp/tasker_chart_with_rejected.html', auto_open=False)
             else:
@@ -269,7 +277,6 @@ class RequestTable():
         self.free_id.append(record.get_id())
         del self.dictionary[record.get_id()]
 
-
     def get_requst(self, record_id):
         if record_id not in self.used_ids:
             return None
@@ -277,6 +284,10 @@ class RequestTable():
 
     def get_request_copy(self, record_id):
         return copy.copy(self.get_requst(record_id))
+
+    def evaluate_all_rules(self):
+        for req in self.items():
+            req[1].evaluate_rules()
 
     def get_highest_by_key_higher_than(self, key, reference=None):
         if len(self.used_ids) == 0:
@@ -286,7 +297,8 @@ class RequestTable():
             ref_value = local_dict[reference].get_value_by_key(key)
             del local_dict[reference]
             if len(local_dict.items()) == 0:
-                print ("No records in the table beside the executing request")
+                if self.debug == True:
+                    print ("No records in the table beside the executing request")
                 return None
         max_value = local_dict.items()[0][1].get_value_by_key(key)
         max_id = local_dict.items()[0][0]
@@ -372,12 +384,13 @@ class RequestTable():
         a_deadline = req1.get_value_by_key('deadline')
         b_start = req2.get_value_by_key('start_time')
         b_deadline = req2.get_value_by_key('deadline')
-        print ("START:")
-        print ("---------1---------\t\t---------2---------" )
-        print (a_start, "\t", b_start)
-        print ("DEADLINE:")
-        print ("---------1---------\t\t---------2---------" )
-        print (a_deadline, "\t", b_deadline)
+        if self.debug == True:
+            print ("START:")
+            print ("---------1---------\t\t---------2---------" )
+            print (a_start, "\t", b_start)
+            print ("DEADLINE:")
+            print ("---------1---------\t\t---------2---------" )
+            print (a_deadline, "\t", b_deadline)
         if req1.get_value_by_key('start_time')<req2.get_value_by_key('deadline'):
             if (req1.get_value_by_key('deadline')+ delay)>req2.get_value_by_key('start_time'):
                 return (req1.get_value_by_key('deadline')+ delay) - req2.get_value_by_key('start_time')
@@ -387,14 +400,16 @@ class RequestTable():
         isinstance(delay, timedelta)
         # print ("has_priority_conflict")
         conflicts = self.conflicts(req)
-        print ("CONFLICTS: ", conflicts)
+        if self.debug == True:
+            print ("CONFLICTS: ", conflicts)
         priority_conflicts = []
         for conflict in conflicts:
             if conflict.priority >= req.get_value_by_key('priority'):
-                print ("Has priority conflict")
-                print ("Has priority conflict")
-                print ("Has priority conflict")
-                print ("Has priority conflict")
+                if self.debug == True:
+                    print ("Has priority conflict")
+                    print ("Has priority conflict")
+                    print ("Has priority conflict")
+                    print ("Has priority conflict")
                 priority_conflicts.append(conflict)
         return priority_conflicts
 
@@ -408,7 +423,8 @@ class RequestTable():
             cost += conflict_duration + self.calc_delay_task_cost(conflict, conflict_duration)
         return cost
 
-    # return the earliest job ID to be done
+    # return job IDs to be executed in time, starting from the most delayed 
+    # output ={'id': int , 'start': datetime, 'dadline':datetime, 'priority': int}
     def schedule_with_priority(self):
         priority_scheduler = PriorityShdl.PriorityScheduler()
         for req in self.dictionary.items():
@@ -416,8 +432,13 @@ class RequestTable():
         self.shdl_result = priority_scheduler.scheduleJobs()
 
         self.shdl_result.scheduled.sort(key=lambda x: x.start, reverse=False)
-        print (self.shdl_result.rejected)
+        # print (self.shdl_result.rejected)
         self.updateGantt(with_rejected=True)
         self.updateGantt(with_rejected=False)
-        return self.shdl_result.scheduled[0].jobID
+        # results = []
+        # for accepted in self.shdl_result.scheduled:
+        #     results.append({'id':accepted.jobID, 'start':accepted.start, 'deadline':accepted.stop, 'priority':self.get_requst(accepted.jobID).priority})
+        # print (results)
+        # return results
+        return self.shdl_result.scheduled
 

@@ -56,7 +56,7 @@ def sub_socket_filtered(socket, da_name):
 
 
 class DACommunicator():
-	def __init__(self, da_name, cond_cost_handler, sus_cost_handler):
+	def __init__(self, da_name, cond_cost_handler, sus_cost_handler, debug = False):
 		global socket_ports
 		context = zmq.Context()
 		self.da_name = da_name
@@ -85,39 +85,56 @@ class DACommunicator():
 		self.is_tha_alive = True
 		self.thread_tha_alive = threading.Thread(target=self.thaAliveThread, args=(1,))
 		self.thread_tha_alive.start()
-		print "started cmd thread_tha_alive thread"
+		self.debug = debug
+		if self.debug:
+			print ("started cmd thread_da_alive thread")
 
 	def __del__(self):
 		# self.context.term()
-		print "\n\n\n\n DEL DACommunicator \n\n\n\n"
+		
+		if self.debug:
+			print (" DEL DACommunicator ")
 		self.da_is_running = False
-		print "\n\n DACommunicator join thread \n\n"
+		
+		if self.debug:
+			print (" DACommunicator join thread ")
 		#self.thread_tha_alive.join()
 
 	def close(self):
 		try:
 			self.da_is_running = False
-			print "\n\n DACommunicator terminating context \n\n"
+			
+			if self.debug:
+				print (" DACommunicator terminating context ")
 			i=0
 			for socket in self.sockets:
 				socket.close()
-				print "closed: ", i
 				i+=1
 			self.context.term()
-			print "\n\n DACommunicator CLOSED \n\n"
+			
+			if self.debug:
+				print (" DACommunicator CLOSED ")
 
 		except Exception as e:
-			print 'Detected exception in DACommunicator'
-			print e
+			print ('Detected exception in DACommunicator')
+			
+		if self.debug:
+			print (e)
 	def pub_status(self, msg=None):
 		isinstance(msg, Status)
 		self.socket_status_pub.send_pyobj( msg )
 
 	def sub_cmd(self):
-		return sub_socket_filtered(self.socket_cmd_sub, self.da_name)
+		try:
+			return sub_socket_filtered(self.socket_cmd_sub, self.da_name)
+		except zmq.ContextTerminated:
+			print("CONTEXT TERMINATED - closing socket")
 
 	def sub_tha_alive(self):
-		return self.socket_life_tick_sub.recv(zmq.NOBLOCK)
+		try:
+			return self.socket_life_tick_sub.recv(zmq.NOBLOCK)
+		except zmq.ContextTerminated:
+			print("CONTEXT TERMINATED - closing socket")
 
 	def handle_cost_cond(self):
 		return self.socket_cost_cond_srv.send_pyobj(self.cond_cost_handler(self.socket_cost_cond_srv.recv_pyobj()))
@@ -133,14 +150,17 @@ class DACommunicator():
 		timeout = 0
 		while self.da_is_running:
 			try:
-				# print "thaAliveThread: ", self.is_tha_alive
+				# 
+				if self.debug:
+					print ("thaAliveThread: ", self.is_tha_alive)
 				self.socket_life_tick_sub.recv()
 				# self.sub_tha_alive()
 				self.is_tha_alive = True
 				time.sleep(1)
 			except zmq.ZMQError as e:
-				# print "thaAliveThread: EXCEPTION: ", e.errno
-				# print "thaAliveThread: EXCEPTION: ", zmq.EAGAIN
+				print ("thaAliveThread: EXCEPTION: ", e.errno)
+				# 
+				print ("thaAliveThread: EXCEPTION: ", zmq.EAGAIN)
 				if e.errno == zmq.EAGAIN:
 					self.socket_life_tick_sub.close()
 					self.is_tha_alive = False
@@ -148,11 +168,11 @@ class DACommunicator():
 				else:
 					raise
 			except Exception as e:
-				print 'Detected exception in DACommunicator'
+				print ('Detected exception in DACommunicator')
 
 
 class THACommunicator():
-	def __init__(self):
+	def __init__(self, debug = False):
 		global socket_ports
 		context = zmq.Context()
 		self.context = context
@@ -174,32 +194,45 @@ class THACommunicator():
 		self.tha_is_running = True
 		self.thread_tha_alive = threading.Thread(target=self.thaAliveThread, args=(1,))
 		self.thread_tha_alive.start()
-		print "started cmd thread_tha_alive thread"
+		self.debug = debug
+		
+		if self.debug:
+			print ("started cmd thread_tha_alive thread")
 
 	def __del__(self):
 		self.context.term()
-		print "\n\n\n\n DEL THACommunicator \n\n\n\n"
+		
+		if self.debug:
+			print (" DEL THACommunicator ")
 		self.tha_is_running = False
 		self.thread_tha_alive.join()
 
 	def close(self):
 		try:
 			self.tha_is_running = False
-			print "\n\n THACommunicator terminating context \n\n"
+			
+			if self.debug:
+				print (" THACommunicator terminating context ")
 			i=0
 			for socket in self.sockets:
 				socket.close()
-				print "closed: ", i
 				i+=1
 			self.context.term()
-			print "\n\n THACommunicator CLOSED \n\n"
+			
+			if self.debug:
+				print (" THACommunicator CLOSED ")
 
 		except Exception as e:
-			print 'Detected exception in THACommunicator'
-			print e
+			print ('Detected exception in THACommunicator')
+			
+		if self.debug:
+			print (e)
 
 	def sub_status(self):
-		return self.socket_status_sub.recv_pyobj()
+		try:
+			return self.socket_status_sub.recv_pyobj()
+		except zmq.ContextTerminated:
+			print("CONTEXT TERMINATED - closing socket")
 
 	def pub_cmd(self, msg=None):
 		isinstance(msg, CMD)
@@ -226,5 +259,5 @@ class THACommunicator():
 				self.pub_life_tick()
 				time.sleep(1)
 			except Exception as e:
-				print 'Detected exception in THACommunicator'
+				print ('Detected exception in THACommunicator')
 
