@@ -14,7 +14,7 @@ class Job:
 class TimeSlot:
     def __init__(self, start=datetime.combine(date.today(), datetime.min.time()), 
                         stop=datetime.combine(date.today(), datetime.max.time()), 
-                        state=False, superSlot=None):
+                        state=False, superSlot=None, job_id=None):
         isinstance(start, datetime)
         isinstance(stop, datetime)
         # True is used, False is free
@@ -26,45 +26,78 @@ class TimeSlot:
         self.subSlots = []
         self.superSlot = superSlot
         self.print_indent = 0
+        self.minimalSlot = timedelta(seconds=5)
+        self.jobID = job_id
+
+    def getDuration(self):
+        return self.stop - self.start
     
-    def bookSlot(self, deadline_timeStamp, burst_time):
+    def bookSlot(self, deadline_timeStamp, burst_time, job_id):
         isinstance(deadline_timeStamp, datetime)
         isinstance(burst_time, timedelta)
         booked_slot = None
-        if self.within(deadline_timeStamp):
+        if self.within(deadline_timeStamp, burst_time) and self.state==False:
             self.state = True
-            self.subSlots.append(TimeSlot(self.start, deadline_timeStamp-burst_time, state=False, superSlot=self))
-            booked_slot = TimeSlot(deadline_timeStamp-burst_time, deadline_timeStamp, state=True, superSlot=self)
+            if self.getDuration() - burst_time <= self.minimalSlot:
+                self.jobID = job_id
+                return self
+            pre_slot = TimeSlot(self.start, deadline_timeStamp-burst_time, state=False, superSlot=self)
+            print("pre: "+str(pre_slot.getDuration()))
+            if pre_slot.getDuration() > self.minimalSlot:
+                self.subSlots.append(pre_slot)
+            booked_slot = TimeSlot(deadline_timeStamp-burst_time, deadline_timeStamp, state=True, superSlot=self, job_id=job_id)
             self.subSlots.append(booked_slot)
-            self.subSlots.append(TimeSlot(deadline_timeStamp,self.stop, state=False, superSlot=self))
+            post_slot = TimeSlot(deadline_timeStamp,self.stop, state=False, superSlot=self)
+            if post_slot.getDuration() > self.minimalSlot:
+                self.subSlots.append(post_slot)
         else:
             raise Exception("Requested division of TimeSlot in TimeStamp out of the TimeSlot")
         return booked_slot
     
-    def within(self, timeStamp):
+    def within(self, timeStamp, burstTime):
         isinstance(timeStamp, datetime)
-        return (timeStamp >= self.start) and (timeStamp <= self.stop)
+        isinstance(burstTime, timedelta)
+        # print("ts: ", timeStamp, "bt: ", burstTime, "d: ", self.getDuration())
+        if (timeStamp - burstTime >= self.start) and (timeStamp <= self.stop) \
+                    and (self.getDuration()>=burstTime):
+            # print("within")
+            return True
+        else:
+            return False
 
-    def get_slot_by_datetime(self, dt):
+    def get_slot_by_datetime(self, dt, burst_time):
         isinstance(dt, datetime)
-        if self.state == False and self.within(dt):
+        isinstance(burst_time, timedelta)
+        if self.state == False and self.within(dt, burst_time):
+            # print("self")
             return self
         else:
             for subslot in self.subSlots:
-                if subslot.within(dt) and subslot.state == False:
-                    ss = subslot.get_slot_by_datetime(dt)
-                    # if ss != None:
-                    return ss
+                # print("subslot:", subslot.start)
+                if subslot.within(dt, burst_time) and subslot.state == False:
+                    # print("subslot: ", subslot.start)
+                    return subslot
+                else:
+                    # print("else")
+                    ss = subslot.get_slot_by_datetime(dt, burst_time)
+                    if ss != None:
+                        return ss# if ss != None:
+                    continue
         return None
 
-    def print_slots(self, print_indent=0):
-        print (str(self.start)+">>"+str(self.stop))
-        s = ''
+    def print_slots(self, print_indent=1):
+        # s = ''
+        # for i in range(print_indent):
+        #     s += '  '
+        #     i+=1
+        # print (s+str(self.start)+">>"+str(self.stop))
         for slot in self.subSlots:
-            slot.print_slots(print_indent+1)
+            s = ''
             for i in range(print_indent):
                 s += '  '
-            print (s+str(slot.start)+">>"+str(slot.stop))
+                i+=1
+            print (s+str(slot.start)+">>"+str(slot.stop)+" state: "+str(slot.state))
+            slot.print_slots(print_indent+1)
 # class TimeSlots:
 #     def __init__(self):
 #         self.slots = []
@@ -93,17 +126,23 @@ def scheduleJobs(jobs, T):
     jobs.sort(key=lambda x: x.profit, reverse=True)
     j_slot = TimeSlot(state=True)
     # consider each job in decreasing order of their profits
+    slots = []
+    profit = 0
     for job in jobs:
         # search for the next free slot and map the task to that slot
         # for s in reversed(range(job.deadline)):
-        print ("JOB: "+str(job.taskId))
-        day_slot.print_slots()
-        j_slot = day_slot.get_slot_by_datetime(job.deadline)
+        print ("JOB: "+str(job.taskId)+" ----"+str(job.deadline))
+        j_slot = day_slot.get_slot_by_datetime(job.deadline, job.burstTime)
+        # print("j_slot ", j_slot)
         if j_slot == None:
             print("Cannot book slot")
         else:
-            my_slot = j_slot.bookSlot(job.deadline, job.burstTime)
-            print (str(my_slot.start)+">>"+str(my_slot.stop))
+            my_slot = j_slot.bookSlot(job.deadline, job.burstTime, job.taskId)
+            slots.append(my_slot)
+            profit += job.profit
+            # print (str(my_slot.start)+">>"+str(my_slot.stop))
+        day_slot.print_slots()
+        print()
         # while j_slot.state:
         #     j_slot = day_slot.get_slot_by_datetime(job.deadline)
 
@@ -114,7 +153,9 @@ def scheduleJobs(jobs, T):
         #         break
  
     # print the scheduled jobs
-    print('The scheduled jobs are', list(filter(lambda x: x != -1, slot)))
+    print('The scheduled jobs are:')
+    for i in slots:
+        print(str(i.start)+">>"+str(i.stop)+" ---->"+str(i.jobID))
  
     # print total profit that can be earned
     print('The total profit earned is', profit)
@@ -125,16 +166,16 @@ if __name__ == '__main__':
     # List of given jobs. Each job has an identifier, a deadline, and
     # profit associated with it
     jobs = [
-        Job(1, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=9), 15, timedelta(minutes=2)), 
-        Job(2, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 2, timedelta(minutes=2)), 
+        Job(1, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=9), 15, timedelta(minutes=3)), 
+        Job(2, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 2, timedelta(minutes=1)), 
         Job(3, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 18, timedelta(minutes=2)), 
-        Job(4, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=7), 1, timedelta(minutes=2)), 
-        Job(5, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 25, timedelta(minutes=2)),
-        Job(6, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 20, timedelta(minutes=2)), 
-        Job(7, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 8, timedelta(minutes=2)), 
-        Job(8, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=7), 10, timedelta(minutes=2)), 
-        Job(9, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 12, timedelta(minutes=2)), 
-        Job(10, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=3), 5, timedelta(minutes=2))
+        Job(4, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=10), 1, timedelta(minutes=3)), 
+        Job(5, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 25, timedelta(minutes=5)),
+        Job(6, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=2), 20, timedelta(minutes=1)), 
+        Job(7, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=5), 8, timedelta(minutes=1)), 
+        Job(8, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=7), 10, timedelta(minutes=1)), 
+        Job(9, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=4), 12, timedelta(minutes=10)), 
+        Job(10, datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=3), 5, timedelta(minutes=6))
     ]
  
     # stores the maximum deadline that can be associated with a job
