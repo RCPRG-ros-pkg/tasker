@@ -75,6 +75,7 @@ if __name__ == '__main__':
         job.evaluate_rules()
         rt.addRecord(job)
     rt.schedule_with_priority()
+    print ("ITEMS:", rt.items())
     # # stores the maximum deadline that can be associated with a job
     # T = 15
  

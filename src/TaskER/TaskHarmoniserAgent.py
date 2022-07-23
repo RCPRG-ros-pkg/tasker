@@ -15,7 +15,17 @@ import RequestTable
 from datetime import datetime, timedelta
 import random
 class TaskHarmoniserAgent(object):
-    def __init__(self, task_type_priority_map={}, debug=False):
+    class TaskTypePriorityMap():
+        def __init__(self):
+            self.map = []
+        def addTaskType(self, task_type, type_priority):
+            isinstance(task_type,str)
+            isinstance(type_priority, int)
+            self.map.append({'task_type':task_type, 'priority':type_priority})
+        def getMap(self):
+            return self.map
+
+    def __init__(self, task_type_priority_map=TaskTypePriorityMap(), debug=False):
 
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
@@ -53,7 +63,10 @@ class TaskHarmoniserAgent(object):
         self.tasker_communicator.close()
         self.tha_is_running = False
         self.thread_status_update.join()
-        
+
+    def getTasks(self):
+        return self.request_table.items()
+
     def updateQueueDataThread(self, args):
 
         while not rospy.is_shutdown() and self.tha_is_running:
@@ -86,7 +99,7 @@ class TaskHarmoniserAgent(object):
         if self.debug ==True:
             print("\nUPDATED SP\n")
 
-    def initialiseDA(self, executable, da_type,da_id, args):
+    def initialiseDA(self, executable, da_type,da_id, shdl_rules, args):
         da_name = "DA_"+str(da_id)
         args.append( 'da_id' )
         args.append( str(da_id) )
@@ -104,7 +117,7 @@ class TaskHarmoniserAgent(object):
         p = subprocess.Popen(run_cmd)
         row = {'da_id': da_id, 'process': p}
         self.DA_processes[da_id] = row
-        self.addDA(da_id,da_name, da_type)
+        self.addDA(da_id, da_name, da_type, shdl_rules, datetime.now())
 
     def addDA(self, added, da_name, da_type, shdl_rules, req_time):
         # type: (int) -> None

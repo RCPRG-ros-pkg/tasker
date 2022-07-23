@@ -13,6 +13,8 @@ from std_msgs.msg import String
 import tiago_msgs.msg
 from rcprg_smach.ros_node_utils import get_node_names
 from TaskER.TaskHarmoniserAgent import TaskHarmoniserAgent
+import TaskER.RequestTable as RequestTable
+from datetime import datetime
 
 class TaskSpec:
     def __init__(self, intent_name, task_name, priority, params_names_list):
@@ -93,8 +95,8 @@ class TaskHarmonizer:
     def spin(self):
         try:
             while not rospy.is_shutdown():
-                queue = self.tha.getQueue()
-                [interrupting, executing] = self.tha.getInterruptingAndExecuting()
+                queue = self.tha.getTasks()
+                # [interrupting, executing] = self.tha.getInterruptingAndExecuting()
                 if not self.pending_task_request is None:
                     if True:
                         self.runTask( self.pending_task_request[0], self.pending_task_request[1] )
@@ -165,7 +167,8 @@ class TaskHarmonizer:
         self.shdl_performed = False
         while not self.shdl_performed ==True:
             rospy.sleep(0.1)
-        [interrupting, executing] = self.tha.getInterruptingAndExecuting()
+        interrupting = self.tha.interruptField
+        executing = self.tha.execField
         if task_spec.task_name == 'stop':
             if self.tha.isExecuting():
                 self.tha.suspendDA(set_exemplary_susp_task=False)
@@ -173,14 +176,18 @@ class TaskHarmonizer:
                 pass
         else:
             da_id = self.tha.getNextID()
-            self.tha.initialiseDA(executable=executable, da_type=task_spec.task_name,  da_id=da_id, args=args)
+            shdl_rule = RequestTable.ScheduleRule(rule_type='now', rule_value=datetime.now())
+            shdl_rules = RequestTable.ScheduleRules()
+            shdl_rules.addRule(shdl_rule)
+            self.tha.initialiseDA(executable=executable, da_type=task_spec.task_name,  \
+                            da_id=da_id, shdl_rules=shdl_rules, args=args)
             #self.current_subprocess = subprocess.Popen( args )
             if self.tha.isExecuting():
-                if da_id == executing["da_id"]:
+                if da_id == executing:
                     print "The requested task is running"
                     return
             if self.tha.isInterrupting():
-                if da_id == interrupting["da_id"]:
+                if da_id == interrupting:
                     print "The requested task interrupts the running behaviour"
                 else:
                     print "Another task awaits as interrupting agent"
@@ -204,7 +211,7 @@ class TaskHarmonizer:
         try:
             while not rospy.is_shutdown():
                 # print "\n SCHEDULING \n"
-                self.tha.schedule_new(cost_file)
+                self.tha.schedule_smit(cost_file)
                 self.shdl_performed=True
                 # print "\n SCHEDULED \n"
                 rospy.sleep(2)
@@ -242,7 +249,6 @@ def main():
 
     print 'Currently running nodes:'
     print get_node_names()
-    tha = TaskHarmoniserAgent()
     # TODO: read map of intents to tasks from file downloaded from cloud (RAPP Store)
     # intent_name -> (task_name, task_param_names)
     tasks_spec_list = [
@@ -256,13 +262,19 @@ def main():
         TaskSpec('projects/incare-dialog-agent/agent/intents/7acd4325-4cdd-4e15-99be-ad545f4dddd5', 'stop', 10, []),
         TaskSpec('projects/incare-dialog-agent/agent/intents/d9e96166-030b-442f-a513-d3fa2e044030', 'wander', 5, []),
         TaskSpec('intent_call', 'call', 1, ['miejsce']),
-        TaskSpec('default', 'idle_tasker', float('-inf'), []),
+        TaskSpec('default', 'idle_tasker', 0, []),
         # TESTS:
         TaskSpec('test_bring_goods', 'test_bring_goods', 0, ['przedmiot']),
         TaskSpec('test_move_to', 'test_move_to', 0, ['miejsce']),
         TaskSpec('test_stop', 'stop', 10, []),
         TaskSpec('test_wander', 'test_wander', 0, []),
     ]
+
+    task_type_priority_map = TaskHarmoniserAgent.TaskTypePriorityMap()
+    for task in tasks_spec_list:
+        task_type_priority_map.addTaskType(task.task_name, task.priority)
+        task_type_priority_map.addTaskType(task.task_name, task.priority)
+    tha = TaskHarmoniserAgent(task_type_priority_map.getMap())
 
     rospack = rospkg.RosPack()
     cached_rapps_path = rospack.get_path('rcprg_smach') + '/nodes'

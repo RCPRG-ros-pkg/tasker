@@ -8,17 +8,16 @@ from tasker_msgs.msg import Status, ScheduleParams
 from datetime import datetime, timedelta
 import random
 import time
-task_type_priority_mapping = [
-    {'task_type': 'transport', 'priority': 1},
-    {'task_type': 'fallAssistance', 'priority': 5},
-    {'task_type': 'guideHuman', 'priority': 2}
-]
+task_type_priority_mapping = TaskHarmoniserAgent.TaskHarmoniserAgent.TaskTypePriorityMap()
+task_type_priority_mapping.addTaskType('transport', 1)
+task_type_priority_mapping.addTaskType('fallAssistance', 5)
+task_type_priority_mapping.addTaskType('guideHuman', 2)
 da_name = 'da1'
 tasker_communicator =  DACommunicator(da_name, None, None)
 
-tha = TaskHarmoniserAgent.TaskHarmoniserAgent(task_type_priority_mapping)
+tha = TaskHarmoniserAgent.TaskHarmoniserAgent(task_type_priority_mapping.getMap())
 for i in range(20):
-    task_type_spec = random.choice(task_type_priority_mapping)
+    task_type_spec = random.choice(task_type_priority_mapping.getMap())
     print(task_type_spec)
     da_id = tha.getNextID()
 

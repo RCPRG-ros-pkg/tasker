@@ -15,6 +15,7 @@ from ppretty import ppretty
 import PriorityShdl
 import numpy as np
 import time
+import sys
 
 def to_seconds(date):
     return time.mktime(date.timetuple())
@@ -22,7 +23,7 @@ def to_seconds(date):
 class ScheduleRule():
     def __init__(self, rule_type, rule_value):
         self.rule_setup_datetime = datetime.now()
-        if not rule_type  in ['after','before','at']:
+        if not rule_type  in ['after','before','at', 'now']:
             raise Exception('Unknown rule type:' + rule_type )
         assert isinstance(rule_value, datetime)
         self.rule_type = rule_type
@@ -109,6 +110,11 @@ class TaskerReqest():
                 print ("deadline: ", self.shdl_rules.get_value_from_type('at'))
             self.deadline = self.shdl_rules.get_value_from_type('at')
             self.start_time  = self.deadline - self.burst_time
+        if 'now' in self.shdl_rules.get_shdl_rules_types():
+            if self.debug == True:
+                print ("start_time: ", self.shdl_rules.get_value_from_type('now'))
+            self.start_time = self.shdl_rules.get_value_from_type('now')
+            self.deadline = self.start_time + self.burst_time
 
     def get_id(self):
         return copy.copy(self.id)
@@ -192,6 +198,7 @@ class RequestTable():
         all_data_frame = []
         rejected_data_frame = []
         accepted_data_frame = []
+        show_data = None
         if self.debug == True:
             print (self.shdl_result)
         for record in self.dictionary:
@@ -215,6 +222,8 @@ class RequestTable():
                 show_data = accepted_data_frame
             if self.debug == True:
                 print ("DATA: ", show_data)
+        if show_data == None:
+            return
         self.gantt_data = pd.DataFrame(show_data)
         if len(self.gantt_data) > 0:
             self.gantt_plot = px.timeline(self.gantt_data, x_start="Start", x_end="Finish", y="Task", height=600, \
@@ -232,8 +241,10 @@ class RequestTable():
                     color="Black"
                 ))
             # self.gantt_plot.update_traces(textposition='outside')
-            self.gantt_plot.add_vline(x=to_seconds(datetime.now()) * 1000, line_width=3, line_color="red", annotation_text='Now')
-            self.gantt_plot.update_annotations(  font=dict(family="sans serif",size=18, color="Red" ))
+
+            if sys.version_info[0] >= 3:
+                self.gantt_plot.add_vline(x=to_seconds(datetime.now()) * 1000, line_width=3, line_color="red", annotation_text='Now')
+                self.gantt_plot.update_annotations(  font=dict(family="sans serif",size=18, color="Red" ))
             if with_rejected:
                 plotly.offline.plot(self.gantt_plot, filename='/tmp/tasker_chart_with_rejected.html', auto_open=False)
             else:
