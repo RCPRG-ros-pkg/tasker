@@ -93,7 +93,7 @@ class DynAgent:
         self.da_suspend_request = SuspendRequest()
         self.da_suspend_request.setData(["cmd","","param_name", "suspension requirements from the task harmoniser"])
         self.is_initialised = False
-        self.tasker_communicator = DACommunicator(da_name=da_name, cond_cost_handler=self.startConditionHandler, sus_cost_handler=self.suspendConditionHandler)
+        self.tasker_communicator = DACommunicator(da_id=da_id, cond_cost_handler=self.startConditionHandler, sus_cost_handler=self.suspendConditionHandler, debug=False)
 
     def startTask(self,data):
         self.startFlag = True
@@ -377,13 +377,15 @@ class DynAgent:
                 self.main_sm.shutdownRequest()
                 break
 
-            time.sleep(0.2)
+            time.sleep(1)
 
     def recvCMDThread(self, args):
 
         while not self.terminateFlag:
             try:
-                self.cmd_handler(self.tasker_communicator.sub_cmd())
+                msg = self.tasker_communicator.sub_cmd()
+                print("GOT CMD: ", msg)
+                self.cmd_handler(msg)
 
             except Exception as e:
                 print 'Detected exception in dynamic agent recvCMDThread'

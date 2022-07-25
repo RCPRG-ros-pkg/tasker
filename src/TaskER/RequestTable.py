@@ -297,15 +297,15 @@ class RequestTable():
         self.dictionary[record.get_id()] = record
         self.updateGantt()
 
-    def removeRecord(self, record_id):
+    def removeRecord_by_id(self, record_id):
         isinstance(record_id, int)
-        self.removeRecord(self.get_request_by_id(record_id))
+        self.used_ids.remove(record_id)
+        self.free_id.append(record_id)
+        del self.dictionary[record_id]
 
     def removeRecord(self, record):
         isinstance(record, TaskerReqest)
-        self.used_ids.remove(record.get_id())
-        self.free_id.append(record.get_id())
-        del self.dictionary[record.get_id()]
+        self.removeRecord_by_id(record.ID)
 
     def get_requst(self, record_id):
         if record_id not in self.used_ids:

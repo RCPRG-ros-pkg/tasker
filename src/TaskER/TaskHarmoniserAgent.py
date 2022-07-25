@@ -14,6 +14,44 @@ import rosservice
 import RequestTable
 from datetime import datetime, timedelta
 import random
+import logging
+
+class CustomFormatter(logging.Formatter):
+
+	green = "\x1b[32m"
+	grey = "\x1b[38;20m"
+	yellow = "\x1b[33;20m"
+	red = "\x1b[31;20m"
+	bold_red = "\x1b[31;1m"
+	reset = "\x1b[0m"
+	format = "%(asctime)s - %(name)s (%(filename)s:%(lineno)d):\n%(message)s"
+
+	FORMATS = {
+		logging.DEBUG: green + format + reset,
+		logging.INFO: grey + format + reset,
+		logging.WARNING: yellow + format + reset,
+		logging.ERROR: red + format + reset,
+		logging.CRITICAL: bold_red + format + reset
+	}
+
+	def format(self, record):
+		log_fmt = self.FORMATS.get(record.levelno)
+		formatter = logging.Formatter(log_fmt)
+		return formatter.format(record)
+
+# create logger with 'spam_application'
+logger = logging.getLogger("TaskHarmoniserAgent")
+logger.setLevel(logging.DEBUG)
+
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+ch.setFormatter(CustomFormatter())
+
+logger.addHandler(ch)
+
+
 class TaskHarmoniserAgent(object):
     class TaskTypePriorityMap():
         def __init__(self):
@@ -25,7 +63,7 @@ class TaskHarmoniserAgent(object):
         def getMap(self):
             return self.map
 
-    def __init__(self, task_type_priority_map=TaskTypePriorityMap(), debug=False):
+    def __init__(self, task_type_priority_map=TaskTypePriorityMap()):
 
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
@@ -42,15 +80,14 @@ class TaskHarmoniserAgent(object):
         self.request_table = RequestTable.RequestTable()
         self.task_type_priority_map = task_type_priority_map
         
-        print ("starting cmd updateQueueDataThread thread")
+        logger.debug("starting cmd updateQueueDataThread thread")
         self.thread_status_update = threading.Thread(target=self.updateQueueDataThread, args=(1,))
         self.thread_status_update.start()
-        print ("started cmd updateQueueDataThread thread")
+        logger.debug ("started cmd updateQueueDataThread thread")
 
         #self.sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueDataThread)
         self.DA_processes = {}
         self._switch_priority = None
-        self.debug = debug
         self.debug_file = False
 
     def __del__(self):
@@ -77,12 +114,12 @@ class TaskHarmoniserAgent(object):
 
     def updateQueueData(self, data):
         global th
-        if self.debug ==True:
-            print("\nUPDATE SP\n")
-            print ("updateQueueData: ",data.da_name, "state: ", data.da_state,"\nSP: \n", data.schedule_params)
-        if data.da_state == 'END':
-            if self.request_table.get_request_by_id(data.da_id) is not None:
-               self.request_table.removeRecord(record_id=data.da_id) 
+        logger.debug("\nUPDATE SP\n")
+        logger.debug("updateQueueData: '{0}' state: '{0}'\nSP:'{2}'\n".format(data.da_name,data.da_state,data.schedule_params))
+        if data.da_state == ['END']:
+            if self.request_table.get_requst(data.da_id) is not None:
+               self.request_table.removeRecord_by_id(data.da_id) 
+               return
             # if self.queue.has_key(data.da_id):
             #     self.removeDA(self.queue[data.da_id])
             else:
@@ -96,8 +133,7 @@ class TaskHarmoniserAgent(object):
         # priority = self.computePriority(data.schedule_params)
         # self.updatePriority(data.da_id, priority)
         # self.updateDAState(data.da_id, data.da_state)
-        if self.debug ==True:
-            print("\nUPDATED SP\n")
+        logger.debug("\nUPDATED SP\n")
 
     def initialiseDA(self, executable, da_type,da_id, shdl_rules, args):
         da_name = "DA_"+str(da_id)
@@ -107,13 +143,13 @@ class TaskHarmoniserAgent(object):
         args.append( da_name )
         args.append( 'da_type' )
         args.append( da_type )
-        print ('args:', args)
+        logger.debug("args:'{0}'".format(args))
         run_cmd = [] 
         #args = ' '.join(map(str, args))
         run_cmd.append(executable)
         run_cmd.extend(args)
         package = 'multitasker'
-        print ("cmd: ",run_cmd)
+        logger.debug("cmd: '{0}'".format(run_cmd))
         p = subprocess.Popen(run_cmd)
         row = {'da_id': da_id, 'process': p}
         self.DA_processes[da_id] = row
@@ -136,8 +172,8 @@ class TaskHarmoniserAgent(object):
     def set_priority(self, da):
 
         task_type_spec = filter(lambda x: da.plan_args['da_type']==x.get('task_type'),self.task_type_priority_map)[0]
-        print(task_type_spec)
-        print(task_type_spec['priority'])
+        logger.debug(task_type_spec)
+        logger.debug(task_type_spec['priority'])
         da.priority = task_type_spec['priority']
 
     def updateDA(self, da):
@@ -158,7 +194,7 @@ class TaskHarmoniserAgent(object):
         if self.isExecuting(): 
             if self.execField == da.id:
                 self.execField = None
-        self.request_table.removeRecord(da.id)
+        self.request_table.removeRecord_by_id(da.id)
         # self.queue.pop(da["da_id"], None)
         p = self.DA_processes[da.id]['process']
         # Wait until process terminates (without using p.wait())
@@ -179,7 +215,7 @@ class TaskHarmoniserAgent(object):
         if self.isExecuting(): 
             if self.execField == da.id:
                 self.execField = None
-        self.request_table.removeRecord(da.id)
+        self.request_table.removeRecord_by_id(da.id)
         # self.queue.pop(da["da_id"], None)
         p = self.DA_processes[da.id]['process']
         # Wait until process terminates (without using p.wait())
@@ -272,13 +308,14 @@ class TaskHarmoniserAgent(object):
         # if self.queue.has_key(da_name):
         #     self.queue[da_name]["last_cmd_sent"] = cmd
         else:
-            print ("[TH] - tried to update last CMD of ",da_id," but there is no such DA" )
+            logger.warning ("[TH] - tried to update last CMD of '{0}' but there is no such DA".format(da_id) )
         self.lock.release()
     def getDALastCMD(self, da_id):
         # type: (int, ScheduleParams) -> None
         self.lock.acquire()
 
         if self.request_table.get_requst(da_id) is not None:
+            self.lock.release()
             return self.request_table.get_requst(da_id).last_cmd_sent
 
         # if self.isExecuting():
@@ -293,7 +330,7 @@ class TaskHarmoniserAgent(object):
         #     self.lock.release()
         #     return self.queue[da_id]["last_cmd_sent"]
         else:
-            print ("[TH] - tried to get last CMD of ",da_id," but there is no such DA" )
+            logger.warning ("[TH] - tried to get last CMD of '{0}' but there is no such DA".format(da_id) )
         self.lock.release()
     def makeInterrupting(self, da_id):
         # type: (int) -> None
@@ -303,14 +340,14 @@ class TaskHarmoniserAgent(object):
         # del self.queue[da_id]
     def makeExecuting(self):
         # type: () -> None
-        if self.isExecuting():
-            # print ("=================================")
-            # print ("adding DA: ", self.execField)
-            # print ("=================================")
-            self.updateDA(self.request_table.get_requst(self.execField))
-            # print ("=================================")
-            # print ("queue: ", self.queue)
-            # print ("=================================")
+        # if self.isExecuting():
+        #     # print ("=================================")
+        #     # print ("adding DA: ", self.execField)
+        #     # print ("=================================")
+        #     self.updateDA(self.request_table.get_requst(self.execField))
+        #     # print ("=================================")
+        #     # print ("queue: ", self.queue)
+        #     # print ("=================================")
         self.execField = self.interruptField
         self.interruptField = None
     def isInterrupting(self):
@@ -388,20 +425,17 @@ class TaskHarmoniserAgent(object):
             cost_file.write("\n"+"IrrField:"+"\n")
             cost_file.write(str(next_da)+"\n")
         else:
-            if self.debug ==True:
-                print("\n"+"IrrField:"+"\n")
-                print("\t Name: "+str(next_da.huid)+"\n")
+            logger.debug("\nIrrField:\n")
+            logger.debug("\t Name: '{0}'\n".format(str(next_da.huid)))
         self.makeInterrupting(next_da.id)
         if not self.switchIndicator.isSet():
             self.sendIndicator(switch_priority)
 
     def set_DA_signal(self, da_id, signal, data=[]):
-        if self.debug ==True:
-            print ("set_DA_signal: ")
+        logger.debug ("set_DA_signal: ")
         self.updateDALastCMD(da_id, signal)
         cmd = CMD(recipient_name = da_id, cmd = signal, data = data)
-        if self.debug ==True:
-            print (cmd)
+        logger.debug (cmd)
         
         self.tasker_communicator.pub_cmd(cmd)
         #self.cmd_pub.publish(cmd)
@@ -415,7 +449,7 @@ class TaskHarmoniserAgent(object):
             wait_flag = (self.isDAAlive_with_lock(self.execField) \
                         and (self.request_table.get_requst(self.execField).state[0]!="Wait"))
             if wait_flag:
-                print("Switch thread waits for exec_da to be WAIT or DEAD")
+                logger.info("Switch thread waits for exec_da to be WAIT or DEAD")
                 rospy.Rate(5).sleep()
             else:
                 self.lock.acquire()
@@ -424,15 +458,13 @@ class TaskHarmoniserAgent(object):
                 self.lock.release()
                 break
         self.lock.acquire()
-        print ("EXEDA: ", exe_da)
+        logger.debug ("EXEDA: '{0}'".format(exe_da))
         self.updateDA(self.request_table.get_requst(exe_da))
         self.lock.release()
 
     def isDAAlive_no_lock(self, da):
         # print("checking DA: "+da["da_name"])
         if da.state == ['END']:
-            if self.debug ==True:
-                pass
                 # print ("THA -> DA <"+da["da_name"]+"> in END state")
             return False
         p = self.DA_processes[da.id]['process']
@@ -441,13 +473,11 @@ class TaskHarmoniserAgent(object):
         return True
 
     def isDAAlive_with_lock(self, da):
+        logger.debug ("isDAAlive_with_lock: getting lock")
         self.lock.acquire()
-        if self.debug ==True:
-            pass
+        logger.debug ("isDAAlive_with_lock: Got lock")
             # print("checking DA: "+da["da_name"])
         if da.state == ['END']:
-            if self.debug ==True:
-                pass
                 # print ("THA -> DA <"+da["da_name"]+"> in END state")
             self.lock.release()
             return False
@@ -561,18 +591,20 @@ class TaskHarmoniserAgent(object):
         for task in priority_schedule:
             if task.within(datetime.now()):
                 candidate = task.jobID
+                if self.request_table.get_requst(candidate).priority != -1:
+                    break
+                else:
+                    candidate = None
         if candidate == None:
             return
-        if candidate != self.execField and candidate != self.interruptField \
-                    and self.request_table.get_requst(candidate).priority != -1:
+        if candidate != self.execField and candidate != self.interruptField:
             self.updateIrrField(self.request_table.get_requst(candidate), switch_priority='normal', cost_file=cost_file)
             
 
 
 
     def filterDA_GH(self, DA):
-        if self.debug ==True:
-            print ("IN FILTER: ", DA)
+        logger.debug ("IN FILTER: '{0}'".format(DA))
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["priority"] != float('-inf'):
@@ -580,8 +612,7 @@ class TaskHarmoniserAgent(object):
         else:
             return False
     def filterDA_HF(self, DA):
-        if self.debug ==True:
-            print ("IN FILTER: ", DA)
+        logger.debug ("IN FILTER: '{0}'".format(DA))
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "human_fell_tasker" and DA[1]["priority"] != float('-inf'):
@@ -590,8 +621,7 @@ class TaskHarmoniserAgent(object):
             return False
 
     def filterDA_BJ(self, DA):
-        if self.debug ==True:
-            print ("IN FILTER: ", DA)
+        logger.debug ("IN FILTER: '{0}'".format(DA))
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "bring_jar_tasker" and DA[1]["priority"] != float('-inf'):
@@ -600,8 +630,7 @@ class TaskHarmoniserAgent(object):
             return False
 
     def filterDA_MT(self, DA):
-        if self.debug ==True:
-            print ("IN FILTER: ", DA)
+        logger.debug ("IN FILTER: '{0}'".format(DA))
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "move_to_tasker" and DA[1]["priority"] != float('-inf'):
@@ -610,8 +639,7 @@ class TaskHarmoniserAgent(object):
             return False
 
     def filterDA_BG(self, DA):
-        if self.debug ==True:
-            print ("IN FILTER: ", DA)
+        logger.debug ("IN FILTER: '{0}'".format(DA))
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "bring_goods_tasker" and DA[1]["priority"] != float('-inf'):
@@ -625,27 +653,23 @@ class TaskHarmoniserAgent(object):
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]["priority"], reverse=True))
-            if self.debug ==True:
-                print ("Queue before END check:\n", ordered_queue)
+            logger.debug ("Queue before END check:\n'{0}'".format(ordered_queue))
         if self.isExecuting():
             if not self.isDAAlive_no_lock(self.execField):
-                if self.debug ==True:
-                    print ("THA-> removes DA: ", self.execField["da_name"])
+                logger.debug ("THA-> removes DA: '{0}'".format(self.execField["da_name"]))
                 self.removeDA_no_lock(self.execField)
         if self.isInterrupting():
             if not self.isDAAlive_no_lock(self.interruptField):
-                if self.debug ==True:
-                    print ("THA-> removes DA: ", self.interruptField["da_name"])
+                logger.debug ("THA-> removes DA: '{0}'".format(self.interruptField["da_name"]))
                 self.removeDA_no_lock(self.interruptField)
         for da in self.queue.items():
             if not self.isDAAlive_no_lock(da[1]):
-                if self.debug ==True:
-                    print ("THA-> removes DA: ", da[1]["da_name"])
+                logger.debug ("THA-> removes DA: '{0}'".format(da[1]["da_name"]))
                 self.removeDA_no_lock(da[1])
 
         # if self.isExecuting():
         #     exec_da_name = "/"+self.execField["da_name"]
-        #     # print("checking  EXEC node: ", exec_da_name)
+        #     # print("checking  EXEC node: '{0}'".format(exec_da_name))
         #     if self.execField["da_state"] == 'END':
         #         self.removeDA_no_lock(self.execField)
         #         self.execField = {}
@@ -676,8 +700,7 @@ class TaskHarmoniserAgent(object):
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
                             key=lambda kv: kv[1]["priority"], reverse=True))
-            if self.debug ==True:
-                print ("OQ:\n", ordered_queue)
+            logger.debug ("OQ:\n'{0}'".format(ordered_queue))
             dac = next(iter(ordered_queue.items()))[1]
             DAset_GH = {}
             DAset_HF = {}
@@ -717,8 +740,7 @@ class TaskHarmoniserAgent(object):
                 cost_file.write(str(self.queue)+"\n")
 
             if len(DAset_HF) > 0:
-                if self.debug ==True:
-                    print ("Have HF")
+                logger.debug ("Have HF")
                 # print ("q_GH")
                 # print q_GH
                 cHF = next(iter(q_HF.items()))[1]
@@ -735,8 +757,7 @@ class TaskHarmoniserAgent(object):
                 # print ("cGH")
                 # print cGH
             elif len(DAset_GH) > 0:
-                if self.debug ==True:
-                    print ("Have GH")
+                logger.debug ("Have GH")
                 cGH = next(iter(q_GH.items()))[1]
                 if self.debug_file == True:
                     cost_file.write("\n"+"cGH:"+"\n")
@@ -752,8 +773,7 @@ class TaskHarmoniserAgent(object):
                         self.lock.release()
                         return    
             elif len(DAset_BJ) > 0:
-                if self.debug ==True:
-                    print ("Have BJ")
+                logger.debug ("Have BJ")
                 cBJ = next(iter(q_BJ.items()))[1]
                 if self.debug_file == True:
                     cost_file.write("\n"+"cBJ:"+"\n")
@@ -770,8 +790,7 @@ class TaskHarmoniserAgent(object):
                         return    
 
             elif len(DAset_MT) > 0:
-                if self.debug ==True:
-                    print ("Have MT")
+                logger.debug ("Have MT")
                 cMT = next(iter(q_MT.items()))[1]
                 if self.debug_file == True:
                     cost_file.write("\n"+"cMT:"+"\n")
@@ -788,8 +807,7 @@ class TaskHarmoniserAgent(object):
                         return    
 
             elif len(DAset_BG) > 0:
-                if self.debug ==True:
-                    print ("Have BG")
+                logger.debug ("Have BG")
                 cBG = next(iter(q_BG.items()))[1]
                 if self.debug_file == True:
                     cost_file.write("\n"+"cBG:"+"\n")
@@ -816,16 +834,13 @@ class TaskHarmoniserAgent(object):
             #     self.lock.release()
             #     return
 
-            if self.debug ==True:
-                print ("dac: ", dac)
+            logger.debug ("dac: ", dac)
             if self.isExecuting() and not self.isInterrupting():
-                print ("COMPARISION of TASKS of same type")
-                if self.debug ==True:
-                    print ("dac priority: ", dac["priority"])
-                    print ("exe priority: ", self.execField["priority"])
+                logger.debug ("COMPARISION of TASKS of same type")
+                logger.debug ("dac priority: '{0}'".format(dac["priority"]))
+                logger.debug ("exe priority: '{0}'".format(self.execField["priority"]))
                 if dac["priority"] > self.execField["priority"]:
-                    if self.debug ==True:
-                        print ("REQUESTING reqParam services")
+                    logger.debug ("REQUESTING reqParam services")
                     # Exec cost for suspension behaviour and task continue starting from DAC final_resource_state -- cc_exec
                     #       , incremental (per sec) cost while waiting for start -- ccps_exec
 
@@ -873,18 +888,18 @@ class TaskHarmoniserAgent(object):
                     shdl_data.data.dac_id = dac["da_id"]
                     shdl_data.data.exec_id = self.execField["da_id"]
                     self.sdhl_pub.publish(shdl_data)
-                    print ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-                    print ("SHDL_DATA: ")
-                    print (shdl_data.data)
-                    print ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                    logger.debug ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                    logger.debug ("SHDL_DATA: ")
+                    logger.debug (shdl_data.data)
+                    logger.debug ("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
                     if (c_switch < (c_wait - c_wait*0.1)):
                         switch_priority = "normal"
-                        print ("#################################################")
-                        print ("SWITCH")
-                        print ("#################################################")
+                        logger.debug ("#################################################")
+                        logger.debug ("SWITCH")
+                        logger.debug ("#################################################")
                         self.updateIrrField(dac,switch_priority,cost_file)
                     else:
-                        print ("candidate priority was less then executing task")
+                        logger.debug ("candidate priority was less then executing task")
                     switch_priority = "normal"
                     self.updateIrrField(dac,switch_priority,cost_file)
             #     if  (self.execField["da_type"] == "tiago_humanFell") and cHF!={}:
@@ -993,7 +1008,7 @@ class TaskHarmoniserAgent(object):
             #         #     cost_file.write("\n"+"DAC < EXEC cost:"+"\n")
             #         #     print ("candidate priority was less then executing task")
             elif not self.isExecuting() and not self.isInterrupting():
-                print ("No EXEC, NO IRR dynamic agent")
+                logger.debug ("No EXEC, NO IRR dynamic agent")
                 # if len(DAset_HF) > 0:
                 #     print ("HF len > 0")
                 #     self.updateIrrField(cHF,cost_file)
@@ -1004,33 +1019,29 @@ class TaskHarmoniserAgent(object):
                     switch_priority = "normal"
                     self.updateIrrField(dac,switch_priority,cost_file)
                 else:
-                    print ("No candidate")
+                    logger.info ("No candidate")
             else:
-                print ("Processing switch")
+                logger.info ("Processing switch")
 
         if not self.isExecuting():
-            print ("No EXEC dynamic agent")
+            logger.info ("No EXEC dynamic agent")
         else:
-            if self.debug ==True:
-                print ("\nEXEC: ")
-                print ("ID: ", self.execField["da_id"])
-                print ("Cost: ", self.execField["scheduleParams"].cost)
-                print ("SP: \n", self.execField["scheduleParams"], "\n")
+            logger.debug ("\nEXEC: ")
+            logger.debug ("ID: '{0}'".format(self.execField["da_id"]))
+            logger.debug ("Cost: '{0}'".format(self.execField["scheduleParams"].cost))
+            logger.debug ("SP: \n'{0}'".format(self.execField["scheduleParams"], "\n"))
         if not self.isInterrupting():
-            if self.debug ==True:
-                print ("No INTERRUPTING dynamic agent")
+            logger.debug ("No INTERRUPTING dynamic agent")
         else:
-            if self.debug ==True:
-                print ("\tINTERRUPT: ")
-                print ("ID: ", self.interruptField["da_id"])
-                print ("Cost: ", self.interruptField["scheduleParams"].cost)
-                print ("SP: \n", self.interruptField["scheduleParams"], "\n")
-        if self.debug ==True:
-            print ("\tQUEUE: ")
-            for key_id in self.queue.items():
-                print ("ID: ", self.queue[key_id[0]]["da_id"])
-                print ("Cost: ", self.queue[key_id[0]]["scheduleParams"].cost)
-                print ("SP: \n", self.queue[key_id[0]]["scheduleParams"], "\n")
+            logger.debug ("\tINTERRUPT: ")
+            logger.debug ("ID: '{0}'".format(self.interruptField["da_id"]))
+            logger.debug ("Cost: '{0}'".format(self.interruptField["scheduleParams"].cost))
+            logger.debug ("SP: \n'{0}'".format(self.interruptField["scheduleParams"], "\n"))
+        logger.debug ("\tQUEUE: ")
+        for key_id in self.queue.items():
+            logger.debug ("ID: '{0}'".format(self.queue[key_id[0]]["da_id"]))
+            logger.debug ("Cost: '{0}'".format(self.queue[key_id[0]]["scheduleParams"].cost))
+            logger.debug ("SP: \n'{0}'".format(self.queue[key_id[0]]["scheduleParams"], "\n"))
 
         self.lock.release()
         # print("\nSCHEDULED\n")
@@ -1039,28 +1050,29 @@ class TaskHarmoniserAgent(object):
         r = rospy.Rate(5)
         self.switchIndicator.wait()
         if self.isInterrupting():
-            print("\nSWITCHING\n")
+            logger.info("\nSWITCHING\n")
             self.lock.acquire()
+            logger.info("\nSWITCHING LOCKED\n")
             if self.isExecuting():
-                commanding = self.execField
+                commanding_da = self.request_table.get_requst(self.execField)
                 self.lock.release()
                 max_sleep_counter = 6
                 sleep_counter = 0
-                while self.getDALastCMD(commanding) in ['start','resume'] \
-                        and self.request_table.get_requst(commanding).state[0] in ["Wait", "Init", "UpdateTask"]:
-                    print ("[Switch] -- while last cmd")
+                while self.getDALastCMD(commanding_da) in ['start','resume'] \
+                        and commanding_da.state[0] in ["Wait", "Init", "UpdateTask"]:
+                    logger.debug ("[Switch] -- while last cmd")
                     sleep_counter = sleep_counter + 1
                     # while commanding DA stays in ["Wait", "init", "UpdateTask"] longer then max_sleep_counter after ['start','resume'] signal,
                     # terminate the commanding DA
                     if max_sleep_counter == sleep_counter:
-                        self.set_DA_signal(da_id=commanding, signal = "terminate", data = ["priority", self._switch_priority,
+                        self.set_DA_signal(da_id=commanding_da.id, signal = "terminate", data = ["priority", self._switch_priority,
                                                             #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
                                                             ])
                         while not rospy.is_shutdown():
-                            print ("[Switch] -- while sleep counter")
-                            wait_flag = self.isDAAlive_with_lock(commanding)
+                            logger.debug ("[Switch] -- while sleep counter")
+                            wait_flag = self.isDAAlive_with_lock(commancommanding_dading)
                             if wait_flag:
-                                print("Waiting for DA: ",commanding," to terminate after long processing of ['start','resume'] command, and new interruption is comming")
+                                logger.info("Waiting for DA: '{0}' to terminate after long processing of ['start','resume'] command, and new interruption is comming".format(commanding_da.id))
                                 rospy.Rate(5).sleep()
                             else:
                                 # Exec DA is terminated, remove it from Exec field
@@ -1071,42 +1083,49 @@ class TaskHarmoniserAgent(object):
                         break
                     r.sleep()
                     
-                if self.isDAAlive_with_lock(commanding):
-                    print("SEND SUSPEND to commanding: ", commanding)
-                    self.set_DA_signal(da_id=commanding, signal = "susp", data = ["priority", self._switch_priority,
+                    
+                logger.info("\nisDAAlive_with_lock\n")
+                if self.isDAAlive_with_lock(commanding_da):
+                    logger.info("SEND SUSPEND to commanding: '{0}'".format(commanding_da.id))
+                    self.set_DA_signal(da_id=commanding_da.id, signal = "susp", data = ["priority", self._switch_priority,
                                                             #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
                                                             ])
 
                      # 10hz
                     # wait until exec DA terminates or swithes to wait state
                     while not rospy.is_shutdown():
-                        wait_flag = (self.isDAAlive_with_lock(commanding) \
-                                and (self.request_table.get_requst(commanding).state[0]!="Wait"))
+                        wait_flag = (self.isDAAlive_with_lock(commanding_da) \
+                                and (commanding_da.state[0]!="Wait"))
                         if wait_flag:
-                            print("Switch thread waits for exec_da to be WAIT or DEAD")
+                            logger.info("Switch thread waits for exec_da to be WAIT or DEAD")
                             r.sleep()
                         else:
-                            if not self.isDAAlive_with_lock(commanding):
+                            if not self.isDAAlive_with_lock(commanding_da):
                                 # Exec DA is terminated, remove it from Exec field
                                 self.lock.acquire()
                                 self.execField = None
                                 self.lock.release()
                             break
             else:
+                logger.info("\nRELEASE\n")
                 self.lock.release()
+            logger.info("\nSWITCHING getting lock\n")
             self.lock.acquire()
+            logger.info("\nSWITCHING got lock\n")
             interrupting = self.interruptField
             self.lock.release()
-            print("SEND StartTask to initialised: ", interrupting)
+            logger.info("SEND StartTask to initialised: '{0}'".format(interrupting))
             # srv_name = "/"+interrupting["da_name"]+"/TaskER/startTask"
             # print (srv_name)
             # print("\nSWITCHING: waiting for QUEUED startTask\n")
             # rospy.wait_for_service(srv_name, timeout=2)
-            print ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", self.request_table.get_requst(interrupting).state[0], "> state.")
+            logger.info ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+                        self.request_table.get_requst(interrupting).state[0]))
             while not self.request_table.get_requst(interrupting).state[0] in ["Wait", "Init"]:
                 if rospy.is_shutdown():
                     return 
-                print ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <", self.request_table.get_requst(interrupting).state[0], "> state.")
+                logger.info ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+                        self.request_table.get_requst(interrupting).state[0]))
                 r.sleep()
 
             if self.request_table.get_requst(interrupting).state[0]=="Wait":
@@ -1114,16 +1133,16 @@ class TaskHarmoniserAgent(object):
             elif self.request_table.get_requst(interrupting).state[0]=="Init":
                 self.set_DA_signal(da_id=interrupting, signal = "start", data = [])
 
-            print("\nSWITCHING: waiting for STARTED hold_now\n")
+            # print("\nSWITCHING: waiting for STARTED hold_now\n")
 
             # rospy.wait_for_service(srv_name, timeout=2)
-            print ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <", 
-                        self.request_table.get_requst(interrupting).state[0], "> state.")
+            logger.info ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <"'{0}' "> state.".format(
+                        self.request_table.get_requst(interrupting).state[0]))
             while not self.request_table.get_requst(interrupting).state[0] in ["UpdateTask","ExecFSM"]:
                 if rospy.is_shutdown():
                     return 
-                print ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <", 
-                                    self.request_table.get_requst(interrupting).state[0], "> state.")
+                logger.info ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <"'{0}' "> state.".format(
+                        self.request_table.get_requst(interrupting).state[0]))
                 rospy.sleep(0.5)
 
             # rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)
@@ -1133,9 +1152,9 @@ class TaskHarmoniserAgent(object):
             self.switchIndicator.clear()
             # print("\n Made executing\n")
             self.lock.release()
-            print("\nSWITCHED\n")
+            logger.info("\nSWITCHED\n")
         else:
-            print ("[TH] -- Killing switch thread")
+            logger.info ("[TH] -- Killing switch thread")
         # self.isInterrupting = isInterrupting
         # self.print_log = file
         # self.handlers = {}
