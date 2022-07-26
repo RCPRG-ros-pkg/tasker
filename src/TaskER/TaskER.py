@@ -7,6 +7,8 @@ def sleep_rate(rate):
     time.sleep(1/rate)
 
 class TaskER(smach_rcprg.StateMachine):
+    global send_status
+    send_status = None
     def __init__(self, da_state_name):
 
         smach_rcprg.StateMachine.__init__(self, da_state_name=da_state_name, outcomes=['Finished', 'shutdown'], input_keys=[], output_keys=[])
@@ -77,7 +79,9 @@ class TaskER(smach_rcprg.StateMachine):
 
     def get_suspension_tf(self,susp_data):
         pass
-
+    def set_send_status(self, new_send_status):
+        global send_status
+        send_status = new_send_status
     def exe_suspension_tf(self,fsm_es_in):
         pass
     def wait_tf(self):
@@ -102,6 +106,14 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['ok'], output_keys=['fsm_es_out'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             fsm_executable = self.tasker_instance.get_suspension_tf(userdata.susp_data)
             userdata.fsm_es_out = fsm_executable
             # userdata.susp_data.clearData()
@@ -121,6 +133,14 @@ class TaskER(smach_rcprg.StateMachine):
                                         io_keys=io_keys)
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             self._userdata = userdata
             # rate = rospy.Rate(self.tf_freq)
             tf_result = None
@@ -181,6 +201,14 @@ class TaskER(smach_rcprg.StateMachine):
                                         io_keys=io_keys)
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             self._userdata = userdata
             # rate = rospy.Rate(self.tf_freq)
             tf_result = None
@@ -220,6 +248,14 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['FINISHED', 'shutdown'],input_keys=['fsm_es_in'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             transition_name = self.tasker_instance.exe_suspension_tf(userdata.fsm_es_in)
             # or stdout, stderr = p.communicate()
             return transition_name
@@ -233,6 +269,14 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['start', 'terminate'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             if self.tasker_instance.isDebug() ==True:
                 rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
                 print 'Wait.execute'
@@ -264,6 +308,14 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['ok', 'shutdown'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             self.tasker_instance.update_task_tf()
             if self.tasker_instance.isDebug() ==True:
                 rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
@@ -291,6 +343,14 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['ok', 'terminate'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             self.tasker_instance.initialise_tf()
             fsm_cmd = None
             while not fsm_cmd == "start":
@@ -311,5 +371,13 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['ok', 'shutdown'])
 
         def execute(self, userdata):
+            global send_status
+            if send_status is not None:
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "SEND STATUS not NONE"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                send_status()
             self.tasker_instance.cleanup_tf()
             return 'ok'

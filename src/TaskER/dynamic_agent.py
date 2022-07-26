@@ -17,6 +17,10 @@ from std_srvs.srv import Trigger, TriggerRequest
 
 from tasker_comm import DACommunicator
 
+from TaskerLogger import TaskerLogger
+
+
+
 global USE_SMACH_INRTOSPECTION_SERVER
 USE_SMACH_INRTOSPECTION_SERVER = False
 
@@ -36,15 +40,12 @@ class SmachShutdownManager:
 
     def on_shutdown(self, signal, frame):
         global USE_SMACH_INRTOSPECTION_SERVER
-        print "DA MANAGER"
         # Stop all introspection servers
         if USE_SMACH_INRTOSPECTION_SERVER:
-            print 'SmachShutdownManager.on_shutdown: stopping all introspection servers'
             for sis in reversed(self.__list_sis__):
                 sis.stop()
 
         # Stop all smach_ros action servers
-        print 'SmachShutdownManager.on_shutdown: stopping all smach_ros action servers'
         for asw in reversed(self.__list_asw__):
             # This is a veru ugly hack:
             asw._action_server.action_server.started = False
@@ -68,9 +69,10 @@ class DynAgent:
     def __init__(self, da_name, da_id, da_type, ptf_csp, da_state_name):
 
         global USE_SMACH_INRTOSPECTION_SERVER
-        global debug
 
-        debug = False
+        tl = TaskerLogger(agent_name=da_name, log_level='debug')
+        self.logger = tl.get_logger()
+
         self.name = da_name
         if USE_SMACH_INRTOSPECTION_SERVER:
             rospy.init_node(self.name)
@@ -93,19 +95,21 @@ class DynAgent:
         self.da_suspend_request = SuspendRequest()
         self.da_suspend_request.setData(["cmd","","param_name", "suspension requirements from the task harmoniser"])
         self.is_initialised = False
-        self.tasker_communicator = DACommunicator(da_id=da_id, cond_cost_handler=self.startConditionHandler, sus_cost_handler=self.suspendConditionHandler, debug=False)
+        self.tasker_communicator = DACommunicator(da_id=da_id, cond_cost_handler=self.startConditionHandler, sus_cost_handler=self.suspendConditionHandler, logger=self.logger)
 
     def startTask(self,data):
         self.startFlag = True
         self.da_suspend_request.setData(data)
 
     def suspTask(self, data="suspension requirements from the task harmoniser"):
-        print("\n","HOLD: ",str( data)+"\n")
+        self.logger.debug("\nHOLD: '{0}'\n".format(data))
         # propagate suspend request to exec FSM
         self.da_suspend_request.setData(data)
         # self.main_sm.request_preempt()
     def terminateDA(self):
+        self.logger.error("TERMINATING DA")
         if not self.terminateFlag == True:
+            self.logger.error("terminateFlag SET")
             my_status = Status()
             my_status.da_id = self.da_id
             my_status.da_name = self.name
@@ -119,7 +123,7 @@ class DynAgent:
                     # self.pub_status.publish(my_status) 
                     self.terminateFlag = True
                 else:
-                    print "DA triggered self termination flag. It is in CMD state, so the flag triggers preemption"
+                    self.logger.error ("DA triggered self termination flag. It is in CMD state, so the flag triggers preemption")
                     self.suspTask(["cmd", "terminate"])
                     self.da_state = ["END"]
                     my_status.da_state = self.da_state
@@ -127,24 +131,25 @@ class DynAgent:
                     # self.pub_status.publish(my_status) 
                     self.terminateFlag = True
             else:
-                print "DA -> TaskER Termination not required, because TaskER FSM is not running. Sending <END> state to THA"
+                self.logger.error ( "DA -> TaskER Termination not required, because TaskER FSM is not running. Sending <END> state to THA")
                 self.cmd_handler(CMD(recipient_name=self.name,cmd="terminate"))
                 self.da_state = ["END"]
                 my_status.da_state = self.da_state
                 self.tasker_communicator.pub_status(my_status)
                 # self.pub_status.publish(my_status) 
                 self.terminateFlag = True
-            print "sendStatusThread close"
+            self.logger.debug ( "sendStatusThread close")
             self.tasker_communicator.close()
-            print "sendStatusThread closed"
+            self.logger.debug ( "sendStatusThread closed")
             del self.tasker_communicator
-            print "sendStatusThread ended"
+            self.logger.debug ( "sendStatusThread ended")
         else:
-            print "termination flag was already handled"
+            self.logger.error("terminateFlag NOT SET")
+            self.logger.debug ( "termination flag was already handled")
     def process_ptf_csp(self, req):
         (flag, result) = self.ptf_csp(req)
         if flag == 'self-terminate':
-            print "DA_tasker: SELF terminate"
+            self.logger.info ( "DA_tasker: SELF terminate")
             self.terminateDA()
             if req[0] == 'suspendCondition':
                 return SuspendConditionsResponse()
@@ -174,21 +179,22 @@ class DynAgent:
         else:
             return
         my_status.da_state = self.da_state
-        if debug:
-            print("UPDATEING STATUS params of: "+str(self.name)+"\n of "+ str( self.taskType)+" type \n"+str(my_status.schedule_params)+"\n")
+        self.logger.debug ("UPDATEING STATUS params of: '{0}'\n of '{1}' type \
+                        that is in '{2}' state:\n'{3}'\n".format(str(self.name),str( self.taskType),str(my_status.da_state),str(my_status.schedule_params)))
         
         self.tasker_communicator.pub_status(my_status)
         # self.pub_status.publish(my_status) 
         
     def cmd_handler(self, data):
         global debug
-        print "DA got CMD: ", data
+        self.logger.debug ( "DA got CMD: '{0}'".format(data))
         if data.cmd == "start":
             # task will be started, so the interface to request start conditions by 'par' buffer is not required anymore
             # self.cost_cond_srv.shutdown()
             fsm_data = ["cmd", "start"]
             fsm_data.extend(data.data)
             self.startTask(fsm_data)
+            self.updateStatus()
             # self.hold_service = rospy.Service(self.node_namespace+"/hold_now", Trigger, lambda : None )
         elif data.cmd == "susp" and self.da_state[0] == "ExecFSM":
             # self.hold_service.shutdown()
@@ -198,6 +204,7 @@ class DynAgent:
             fsm_data = ["cmd", "susp"]
             fsm_data.extend(data.data)
             self.suspTask(fsm_data)
+            self.updateStatus()
         elif data.cmd == "resume" and self.da_state[0] == "Wait":
             #self.start_service.shutdown()
             # self.cost_cond_srv.shutdown()
@@ -221,7 +228,8 @@ class DynAgent:
     def run(self, main_sm, sis=None):
         global USE_SMACH_INRTOSPECTION_SERVER
         self.main_sm = main_sm
-        print "RUNNING DA"
+        self.main_sm.set_send_status(self.updateStatus)
+        self.logger.debug ( "RUNNING DA")
 
         #sis_main = smach_ros.IntrospectionServer('behaviour_server', self.main_sm, '/SM_BEHAVIOUR_SERVER')
         #sis_main.start()
@@ -238,7 +246,7 @@ class DynAgent:
         # self.pub_status = rospy.Publisher('TH/statuses', Status, queue_size=10)
         # subsribe to commands from the task harmoniser 
 
-        print "Setting DA"
+        self.logger.debug ( "Setting DA")
 
         self.node_namespace = self.name + "/TaskER"
         # start_name = self.node_namespace + "/startTask"
@@ -249,22 +257,22 @@ class DynAgent:
         signal.signal(signal.SIGINT, ssm.on_shutdown )
         #rospy.on_shutdown( ssm.on_shutdown )
         if not self.terminateFlag:
-            print "starting status send thread"
+            self.logger.debug ( "starting status send thread")
             thread_status = threading.Thread(target=self.sendStatusThread, args=(1,))
             thread_status.start()
-            print "started status send thread"
-            print "starting cmd recv thread"
+            self.logger.debug ( "started status send thread")
+            self.logger.debug ( "starting cmd recv thread")
             thread_cmd = threading.Thread(target=self.recvCMDThread, args=(1,))
             thread_cmd.start()
-            print "started cmd recv thread"
-            print "starting cost_cond thread"
+            self.logger.debug ( "started cmd recv thread")
+            self.logger.debug ( "starting cost_cond thread")
             thread_cost_cond = threading.Thread(target=self.costCondThread, args=(1,))
             thread_cost_cond.start()
-            print "started cmd cost_cond thread"
-            print "starting cmd susp_cond thread"
+            self.logger.debug ( "started cmd cost_cond thread")
+            self.logger.debug ( "starting cmd susp_cond thread")
             thread_susp_cond = threading.Thread(target=self.suspCondThread, args=(1,))
             thread_susp_cond.start()
-            print "started cmd susp_cond thread"
+            self.logger.debug ( "started cmd susp_cond thread")
             # setup introspection server for smach viewer
             # extend userdata with suspension request object
             self.main_sm.userdata.susp_data = self.da_suspend_request
@@ -273,12 +281,12 @@ class DynAgent:
             # wait for start signal          
             #self.start_service = rospy.Service(self.node_namespace+"/startTask", Trigger, lambda : None )
             while True:
-                print "RUNNING"
+                self.logger.debug ( "RUNNING")
                 self.updateStatus()
                 if self.startFlag:
                     break 
                 if self.terminateFlag:
-                    print "RUNNING: TERM FLAG"
+                    self.logger.debug ( "RUNNING: TERM FLAG")
                     #self.start_service.shutdown()
                     ssm.on_shutdown(None, None)
                     smach_thread.join()
@@ -289,31 +297,31 @@ class DynAgent:
                     return
                 sleep_rate(1)
             #self.start_service.shutdown()
-            print 'Smach thread is running'
+            self.logger.debug ( 'Smach thread is running')
             self.is_initialised = True
             # setup suspend condition handler 
             # self.susp_cond_name = self.node_namespace + "/get_suspend_conditions"
             # self.susp_cond_srv = rospy.Service(self.susp_cond_name, SuspendConditions, self.suspendConditionHandler)
             # Block until everything is preempted
             smach_thread.join()
-            print "SMACH JOINED"
+            self.logger.debug ( "SMACH JOINED")
             self.terminateDA()
-            print "SMACH terminateDA"
+            self.logger.debug ( "SMACH terminateDA")
             thread_status.join()
-            print "SMACH thread_status"
+            self.logger.debug ( "SMACH thread_status")
             thread_cmd.join()
-            print "SMACH thread_cmd"
+            self.logger.debug ( "SMACH thread_cmd")
             thread_cost_cond.join()
-            print "SMACH thread_cost_cond"
+            self.logger.debug ( "SMACH thread_cost_cond")
             thread_susp_cond.join()
-            print "SMACH thread_susp_cond"
-            print "CONN Joined"
+            self.logger.debug ( "SMACH thread_susp_cond")
+            self.logger.debug ( "CONN Joined")
             self.terminateFlag = True
-            print 'Smach thread is finished'
+            self.logger.debug ( 'Smach thread is finished')
         else:
-            print "DA -> have terminateFlag before TaskER FSM start"
+            self.logger.warning( "DA -> have terminateFlag before TaskER FSM start")
         ssm.on_shutdown(None, None)
-        print "DYN AGENT ENDED"
+        self.logger.debug ( "DYN AGENT ENDED")
 
     # def callbackTaskStateCmd(self, data):
     #     print 'DynAgent.callback'
@@ -341,15 +349,15 @@ class DynAgent:
 
         while not self.terminateFlag:
             if not self.tasker_communicator.get_tha_alive_flag():
-                print 'DynAgent "' + self.name + '" detected the task_harmonizer is dead'
+                self.logger.debug ("DynAgent '{0}' detected the task_harmonizer is dead".format(self.name))
                 self.terminateDA()
-                print "sendStatusThread terminateDA"
+                self.logger.debug ( "sendStatusThread terminateDA")
                 fsm_data = ["cmd", "terminate"]
                 self.suspTask(fsm_data)
-                print "sendStatusThread suspTask"
+                self.logger.debug ( "sendStatusThread suspTask")
                 # self.main_sm.request_preempt()
                 self.main_sm.shutdownRequest()
-                print "sendStatusThread shutdownRequest"
+                self.logger.debug ( "sendStatusThread shutdownRequest")
                 break
 
             try:
@@ -370,8 +378,8 @@ class DynAgent:
                 
                 # self.pub_diag.publish( diag )
             except Exception as e:
-                print 'Detected exception in dynamic agent sendStatusThread'
-                print e
+                self.logger.error ( 'Detected exception in dynamic agent sendStatusThread')
+                self.logger.error ( e)
                 self.terminateDA()
                 # self.main_sm.request_preempt()
                 self.main_sm.shutdownRequest()
@@ -384,19 +392,23 @@ class DynAgent:
         while not self.terminateFlag:
             try:
                 msg = self.tasker_communicator.sub_cmd()
-                print("GOT CMD: ", msg)
-                self.cmd_handler(msg)
+                self.logger.debug("GOT CMD: '{0}'".format(msg))
+                if msg is not None:
+                    self.cmd_handler(msg)
 
             except Exception as e:
-                print 'Detected exception in dynamic agent recvCMDThread'
-                print e
-                self.terminateDA()
-                # self.main_sm.request_preempt()
-                self.main_sm.shutdownRequest()
-                break
+                if str(e) == 'Context was terminated':
+                    break
+                else:
+                    self.logger.error( 'Detected exception in dynamic agent recvCMDThread')
+                    self.logger.error( e)
+                    self.terminateDA()
+                    # self.main_sm.request_preempt()
+                    self.main_sm.shutdownRequest()
+                    break
 
-            time.sleep(0.2)
-        print "recvCMDThread ended"
+            time.sleep(1)
+        self.logger.info( "recvCMDThread ended")
 
 
     def costCondThread(self, args):
@@ -406,15 +418,18 @@ class DynAgent:
                 self.tasker_communicator.handle_cost_cond()
 
             except Exception as e:
-                print 'Detected exception in dynamic agent costCondThread'
-                print e
-                self.terminateDA()
-                # self.main_sm.request_preempt()
-                self.main_sm.shutdownRequest()
-                break
+                if str(e) == 'Context was terminated':
+                    break
+                else:
+                    self.logger.error( 'Detected exception in dynamic agent costCondThread')
+                    self.logger.error( e)
+                    self.terminateDA()
+                    # self.main_sm.request_preempt()
+                    self.main_sm.shutdownRequest()
+                    break
 
-            time.sleep(0.2)
-        print "costCondThread ended"
+            time.sleep(1)
+        self.logger.info( "costCondThread ended")
 
     def suspCondThread(self, args):
 
@@ -423,12 +438,15 @@ class DynAgent:
                 self.tasker_communicator.handle_sus_cond()
 
             except Exception as e:
-                print 'Detected exception in dynamic agent suspCondThread'
-                print e
-                self.terminateDA()
-                # self.main_sm.request_preempt()
-                self.main_sm.shutdownRequest()
-                break
+                if str(e) == 'Context was terminated':
+                    break
+                else:
+                    self.logger.error( 'Detected exception in dynamic agent suspCondThread')
+                    self.logger.error( e)
+                    self.terminateDA()
+                    # self.main_sm.request_preempt()
+                    self.main_sm.shutdownRequest()
+                    break
 
-            time.sleep(0.2)
-        print "suspCondThread ended"
+            time.sleep(1)
+        self.logger.info( "suspCondThread ended")

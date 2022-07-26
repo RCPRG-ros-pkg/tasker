@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from collections import OrderedDict
+
+from cv2 import log
 from tasker_msgs.msg import *
 from tasker_msgs.srv import *
 from tasker_comm import THACommunicator
@@ -14,43 +16,10 @@ import rosservice
 import RequestTable
 from datetime import datetime, timedelta
 import random
-import logging
+from TaskerLogger import TaskerLogger
 
-class CustomFormatter(logging.Formatter):
-
-	green = "\x1b[32m"
-	grey = "\x1b[38;20m"
-	yellow = "\x1b[33;20m"
-	red = "\x1b[31;20m"
-	bold_red = "\x1b[31;1m"
-	reset = "\x1b[0m"
-	format = "%(asctime)s - %(name)s (%(filename)s:%(lineno)d):\n%(message)s"
-
-	FORMATS = {
-		logging.DEBUG: green + format + reset,
-		logging.INFO: grey + format + reset,
-		logging.WARNING: yellow + format + reset,
-		logging.ERROR: red + format + reset,
-		logging.CRITICAL: bold_red + format + reset
-	}
-
-	def format(self, record):
-		log_fmt = self.FORMATS.get(record.levelno)
-		formatter = logging.Formatter(log_fmt)
-		return formatter.format(record)
-
-# create logger with 'spam_application'
-logger = logging.getLogger("TaskHarmoniserAgent")
-logger.setLevel(logging.DEBUG)
-
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-ch.setFormatter(CustomFormatter())
-
-logger.addHandler(ch)
-
+tl = TaskerLogger(agent_name='Harmoniser', log_level='debug')
+logger = tl.get_logger()
 
 class TaskHarmoniserAgent(object):
     class TaskTypePriorityMap():
@@ -70,7 +39,7 @@ class TaskHarmoniserAgent(object):
         self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'da_state': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
-        self.tasker_communicator =  THACommunicator()
+        self.tasker_communicator =  THACommunicator(logger=logger)
         self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
         #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
@@ -109,17 +78,20 @@ class TaskHarmoniserAgent(object):
         while not rospy.is_shutdown() and self.tha_is_running:
             msg = self.tasker_communicator.sub_status()
             if msg == None:
+                logger.debug("\nNone msg\n")
                 break
             self.updateQueueData(msg)
 
     def updateQueueData(self, data):
         global th
         logger.debug("\nUPDATE SP\n")
-        logger.debug("updateQueueData: '{0}' state: '{0}'\nSP:'{2}'\n".format(data.da_name,data.da_state,data.schedule_params))
+        logger.debug("updateQueueData: '{0}' state: '{1}'\nSP:'{2}'\n".format(data.da_name,data.da_state,data.schedule_params))
         if data.da_state == ['END']:
             if self.request_table.get_requst(data.da_id) is not None:
-               self.request_table.removeRecord_by_id(data.da_id) 
-               return
+                self.lock.acquire()
+                self.request_table.removeRecord_by_id(data.da_id) 
+                self.lock.release()
+                return
             # if self.queue.has_key(data.da_id):
             #     self.removeDA(self.queue[data.da_id])
             else:
@@ -420,15 +392,12 @@ class TaskHarmoniserAgent(object):
     def updateIrrField(self, next_da, switch_priority, cost_file):
     # print ("NDA: ", next_da)
     # print ("NDA_ID: ", next_da["da_id"])
-        debug = False
-        if self.debug_file == True:
-            cost_file.write("\n"+"IrrField:"+"\n")
-            cost_file.write(str(next_da)+"\n")
-        else:
-            logger.debug("\nIrrField:\n")
-            logger.debug("\t Name: '{0}'\n".format(str(next_da.huid)))
+        # debug = False
+        logger.debug("\nIrrField:\n")
+        logger.debug("\t Name: '{0}'\n".format(str(next_da.huid)))
         self.makeInterrupting(next_da.id)
         if not self.switchIndicator.isSet():
+            logger.error("\t setting switch indicator")
             self.sendIndicator(switch_priority)
 
     def set_DA_signal(self, da_id, signal, data=[]):
@@ -585,6 +554,7 @@ class TaskHarmoniserAgent(object):
         # plan to get burst times for tke tasks
         #
         self.call_planner()
+        self.lock.acquire()
         self.request_table.evaluate_all_rules()
         priority_schedule = self.request_table.schedule_with_priority()
         candidate = None
@@ -596,9 +566,13 @@ class TaskHarmoniserAgent(object):
                 else:
                     candidate = None
         if candidate == None:
+            self.lock.release()
             return
+        logger.debug("Got candidate '{0}'".format(str(candidate)))
         if candidate != self.execField and candidate != self.interruptField:
+            logger.debug("setting candidate '{0}'".format(str(candidate)))
             self.updateIrrField(self.request_table.get_requst(candidate), switch_priority='normal', cost_file=cost_file)
+        self.lock.release()
             
 
 
@@ -1047,18 +1021,19 @@ class TaskHarmoniserAgent(object):
         # print("\nSCHEDULED\n")
 
     def switchDA(self):
-        r = rospy.Rate(5)
+        r = rospy.Rate(1)
         self.switchIndicator.wait()
+        logger.error("\t GOT switch indicator")
         if self.isInterrupting():
-            logger.info("\nSWITCHING\n")
+            logger.error("\nSWITCHING\n")
             self.lock.acquire()
-            logger.info("\nSWITCHING LOCKED\n")
+            logger.error("\nSWITCHING LOCKED\n")
             if self.isExecuting():
                 commanding_da = self.request_table.get_requst(self.execField)
                 self.lock.release()
                 max_sleep_counter = 6
                 sleep_counter = 0
-                while self.getDALastCMD(commanding_da) in ['start','resume'] \
+                while self.getDALastCMD(commanding_da.id) in ['start','resume'] \
                         and commanding_da.state[0] in ["Wait", "Init", "UpdateTask"]:
                     logger.debug ("[Switch] -- while last cmd")
                     sleep_counter = sleep_counter + 1
@@ -1070,9 +1045,9 @@ class TaskHarmoniserAgent(object):
                                                             ])
                         while not rospy.is_shutdown():
                             logger.debug ("[Switch] -- while sleep counter")
-                            wait_flag = self.isDAAlive_with_lock(commancommanding_dading)
+                            wait_flag = self.isDAAlive_with_lock(commanding_da)
                             if wait_flag:
-                                logger.info("Waiting for DA: '{0}' to terminate after long processing of ['start','resume'] command, and new interruption is comming".format(commanding_da.id))
+                                logger.error("Waiting for DA: '{0}' to terminate after long processing of ['start','resume'] command, and new interruption is comming".format(commanding_da.id))
                                 rospy.Rate(5).sleep()
                             else:
                                 # Exec DA is terminated, remove it from Exec field
@@ -1084,9 +1059,9 @@ class TaskHarmoniserAgent(object):
                     r.sleep()
                     
                     
-                logger.info("\nisDAAlive_with_lock\n")
+                logger.error("\nisDAAlive_with_lock\n")
                 if self.isDAAlive_with_lock(commanding_da):
-                    logger.info("SEND SUSPEND to commanding: '{0}'".format(commanding_da.id))
+                    logger.error("SEND SUSPEND to commanding: '{0}'".format(commanding_da.id))
                     self.set_DA_signal(da_id=commanding_da.id, signal = "susp", data = ["priority", self._switch_priority,
                                                             #THA może zarządać odpalenia konkretnej sekwencji wstrzymania np. ("rosrun", "TaskER", "exemplary_susp_task"),
                                                             ])
@@ -1097,7 +1072,7 @@ class TaskHarmoniserAgent(object):
                         wait_flag = (self.isDAAlive_with_lock(commanding_da) \
                                 and (commanding_da.state[0]!="Wait"))
                         if wait_flag:
-                            logger.info("Switch thread waits for exec_da to be WAIT or DEAD")
+                            logger.error("Switch thread waits for exec_da to be WAIT or DEAD")
                             r.sleep()
                         else:
                             if not self.isDAAlive_with_lock(commanding_da):
@@ -1107,24 +1082,24 @@ class TaskHarmoniserAgent(object):
                                 self.lock.release()
                             break
             else:
-                logger.info("\nRELEASE\n")
+                logger.error("\nRELEASE\n")
                 self.lock.release()
-            logger.info("\nSWITCHING getting lock\n")
+            logger.error("\nSWITCHING getting lock\n")
             self.lock.acquire()
-            logger.info("\nSWITCHING got lock\n")
+            logger.error("\nSWITCHING got lock\n")
             interrupting = self.interruptField
             self.lock.release()
-            logger.info("SEND StartTask to initialised: '{0}'".format(interrupting))
+            logger.error("SEND StartTask to initialised: '{0}'".format(interrupting))
             # srv_name = "/"+interrupting["da_name"]+"/TaskER/startTask"
             # print (srv_name)
             # print("\nSWITCHING: waiting for QUEUED startTask\n")
             # rospy.wait_for_service(srv_name, timeout=2)
-            logger.info ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+            logger.error ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
                         self.request_table.get_requst(interrupting).state[0]))
             while not self.request_table.get_requst(interrupting).state[0] in ["Wait", "Init"]:
                 if rospy.is_shutdown():
                     return 
-                logger.info ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+                logger.error ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
                         self.request_table.get_requst(interrupting).state[0]))
                 r.sleep()
 
@@ -1136,13 +1111,13 @@ class TaskHarmoniserAgent(object):
             # print("\nSWITCHING: waiting for STARTED hold_now\n")
 
             # rospy.wait_for_service(srv_name, timeout=2)
-            logger.info ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <"'{0}' "> state.".format(
-                        self.request_table.get_requst(interrupting).state[0]))
+            logger.error ("\nSWITCHING: waiting for STARTED '{0}'to be in UpdateTask or ExecFSM. It is in <"'{1}' "> state.".format(
+                            interrupting, self.request_table.get_requst(interrupting).state[0]))
             while not self.request_table.get_requst(interrupting).state[0] in ["UpdateTask","ExecFSM"]:
                 if rospy.is_shutdown():
                     return 
-                logger.info ("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <"'{0}' "> state.".format(
-                        self.request_table.get_requst(interrupting).state[0]))
+                logger.error ("\nSWITCHING: waiting for STARTED '{0}'to be in UpdateTask or ExecFSM. It is in <"'{1}' "> state.".format(
+                            interrupting, self.request_table.get_requst(interrupting).state[0]))
                 rospy.sleep(0.5)
 
             # rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)
@@ -1152,9 +1127,9 @@ class TaskHarmoniserAgent(object):
             self.switchIndicator.clear()
             # print("\n Made executing\n")
             self.lock.release()
-            logger.info("\nSWITCHED\n")
+            logger.error("\nSWITCHED\n")
         else:
-            logger.info ("[TH] -- Killing switch thread")
+            logger.error ("[TH] -- Killing switch thread")
         # self.isInterrupting = isInterrupting
         # self.print_log = file
         # self.handlers = {}

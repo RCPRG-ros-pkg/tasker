@@ -67,8 +67,9 @@ if __name__ == '__main__':
     # ]
     for i in range(1,10):
         sr = ScheduleRules()
+        sign = [-1,1][random.randrange(2)]
         sr.addRule(ScheduleRule(rule_type='at', \
-                            rule_value=datetime.combine(datetime.today(),datetime.min.time())+timedelta(minutes=10+random.randint(1,20))))
+                            rule_value=datetime.now()+timedelta(minutes=10+random.randint(1,20)*sign)))
         print ()
         job = TaskerReqest(ID=str(i),huid=str(i), plan_args='', req_time=datetime.now(), shdl_rules=sr, priority=random.randint(1,5))
         job.set_burst_time(timedelta(minutes=random.randint(1,10)))
