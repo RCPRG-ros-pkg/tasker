@@ -95,18 +95,16 @@ class TaskHarmonizer:
     def spin(self):
         try:
             while not rospy.is_shutdown():
+                print "getting tasks"
                 queue = self.tha.getTasks()
+                print "got tasks"
                 # [interrupting, executing] = self.tha.getInterruptingAndExecuting()
                 if not self.pending_task_request is None:
-                    if True:
-                        self.runTask( self.pending_task_request[0], self.pending_task_request[1] )
-                        self.pending_task_request = None
-                    else:
-                        print 'Cannot run task "' + self.pending_task_request[0].task_name + '"'
-                        goal = tiago_msgs.msg.SaySentenceGoal()
-                        goal.sentence = 'niekorzystne warunki pogodowe jestem teraz zajęty'
-                        print(goal)
-                        #self.rico_says_client.wait_for_result()
+                    print "None pending task"
+                    print "runnign task task"
+                    self.runTask( self.pending_task_request[0], self.pending_task_request[1] )
+                    print " task started"
+                    self.pending_task_request = None
                 elif len(queue) == 0 and self.tha.isExecuting() != True and self.tha.isInterrupting() != True:
                     print "len(queue): ", len(queue)
                     print "self.tha.isExecuting", self.tha.isExecuting()

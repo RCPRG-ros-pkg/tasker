@@ -5,7 +5,8 @@ from collections import OrderedDict
 from cv2 import log
 from tasker_msgs.msg import *
 from tasker_msgs.srv import *
-from tasker_comm import THACommunicator
+from tasker_comm import TaskerCommunicator #, THACommunicator
+from dynamic_agent import DynAgent
 import threading
 import time
 import subprocess
@@ -17,8 +18,10 @@ import RequestTable
 from datetime import datetime, timedelta
 import random
 from TaskerLogger import TaskerLogger
+import importlib
+from rospkg import RosPack
 
-tl = TaskerLogger(agent_name='Harmoniser', log_level='debug')
+tl = TaskerLogger(agent_name='Harmoniser', log_level='info')
 logger = tl.get_logger()
 
 class TaskHarmoniserAgent(object):
@@ -33,13 +36,15 @@ class TaskHarmoniserAgent(object):
             return self.map
 
     def __init__(self, task_type_priority_map=TaskTypePriorityMap()):
-
+        self.rospack = RosPack()
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
         self.init_da = {'da_id': -1, 'da_name': None, 'da_type': None, 'da_state': None, 'priority': float('-inf'), 'scheduleParams': ScheduleParams()}
         self.lock = threading.Lock()
         self.queue = {}
-        self.tasker_communicator =  THACommunicator(logger=logger)
+        # self.tasker_communicator =  THACommunicator(logger=logger)
+        self.tasker_communicator =  TaskerCommunicator(logger=logger)
+        self.tasker_communicator.set_status(self.updateQueueData, 'harmoniser')
         self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
         #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
@@ -49,10 +54,10 @@ class TaskHarmoniserAgent(object):
         self.request_table = RequestTable.RequestTable()
         self.task_type_priority_map = task_type_priority_map
         
-        logger.debug("starting cmd updateQueueDataThread thread")
-        self.thread_status_update = threading.Thread(target=self.updateQueueDataThread, args=(1,))
-        self.thread_status_update.start()
-        logger.debug ("started cmd updateQueueDataThread thread")
+        # logger.debug("starting cmd updateQueueDataThread thread")
+        # self.thread_status_update = threading.Thread(target=self.updateQueueDataThread, args=(1,))
+        # self.thread_status_update.start()
+        # logger.debug ("started cmd updateQueueDataThread thread")
 
         #self.sub_status = rospy.Subscriber("TH/statuses", Status, self.updateQueueDataThread)
         self.DA_processes = {}
@@ -60,42 +65,35 @@ class TaskHarmoniserAgent(object):
         self.debug_file = False
 
     def __del__(self):
-        self.tasker_communicator.close()
+        self.tasker_communicator.close(id='harmoniser')
         del self.tasker_communicator
         self.tha_is_running = False
-        self.thread_status_update.join()
+        # self.thread_status_update.join()
 
     def close(self):
-        self.tasker_communicator.close()
+        self.tasker_communicator.close(id='harmoniser')
         self.tha_is_running = False
-        self.thread_status_update.join()
+        # self.thread_status_update.join()
 
     def getTasks(self):
         return self.request_table.items()
 
-    def updateQueueDataThread(self, args):
+    # def updateQueueDataThread(self, args):
 
-        while not rospy.is_shutdown() and self.tha_is_running:
-            msg = self.tasker_communicator.sub_status()
-            if msg == None:
-                logger.debug("\nNone msg\n")
-                break
-            self.updateQueueData(msg)
+    #     while not rospy.is_shutdown() and self.tha_is_running:
+    #         msg = self.tasker_communicator.sub_status()
+    #         if msg == None:
+    #             logger.debug("\nNone msg\n")
+    #             break
+    #         self.updateQueueData(msg)
 
     def updateQueueData(self, data):
         global th
+        if data is None:
+            return 
         logger.debug("\nUPDATE SP\n")
         logger.debug("updateQueueData: '{0}' state: '{1}'\nSP:'{2}'\n".format(data.da_name,data.da_state,data.schedule_params))
-        if data.da_state == ['END']:
-            if self.request_table.get_requst(data.da_id) is not None:
-                self.lock.acquire()
-                self.request_table.removeRecord_by_id(data.da_id) 
-                self.lock.release()
-                return
-            # if self.queue.has_key(data.da_id):
-            #     self.removeDA(self.queue[data.da_id])
-            else:
-                raise Exception('This DA: <'+data.da_name+'> is not found in THA queue')
+
         da = self.request_table.get_requst(data.da_id)
         da.shdl_params = data.schedule_params
         da.state = data.da_state
@@ -116,17 +114,29 @@ class TaskHarmoniserAgent(object):
         args.append( 'da_type' )
         args.append( da_type )
         logger.debug("args:'{0}'".format(args))
-        run_cmd = [] 
-        #args = ' '.join(map(str, args))
-        run_cmd.append(executable)
-        run_cmd.extend(args)
-        package = 'multitasker'
-        logger.debug("cmd: '{0}'".format(run_cmd))
-        p = subprocess.Popen(run_cmd)
-        row = {'da_id': da_id, 'process': p}
-        self.DA_processes[da_id] = row
-        self.addDA(da_id, da_name, da_type, shdl_rules, datetime.now())
+        da_module = importlib.import_module('.'+str(da_type), 'TaskER.tasks')
+        da_state_name = []
+        da = DynAgent( da_name, da_id, da_type, da_module.ptf_csp, da_state_name, self.tasker_communicator )
+        
+        # da_class = da_module.MyTaskER()
 
+        # run_cmd = 
+        # #args = ' '.join(map(str, args))
+        # run_cmd.append(executable)
+        # run_cmd.extend(args)
+        # package = 'multitasker'
+        logger.debug("Setting DA thread")
+        tasker_module = da_module.MyTaskER(da_state_name,da_name, args)
+        logger.debug("DA Set")
+        t = threading.Thread(target=da.run, args=(tasker_module,))
+
+        row = {'da_id': da_id, 'thread': t, 'module': tasker_module}
+        self.DA_processes[da_id] = row
+        logger.debug("Starting DA ")
+        t.start()
+        logger.debug("DA Started")
+        logger.debug("Adding DA ")
+        self.addDA(da_id, da_name, da_type, shdl_rules, datetime.now())
     def addDA(self, added, da_name, da_type, shdl_rules, req_time):
         # type: (int) -> None
         self.lock.acquire()    
@@ -168,7 +178,12 @@ class TaskHarmoniserAgent(object):
                 self.execField = None
         self.request_table.removeRecord_by_id(da.id)
         # self.queue.pop(da["da_id"], None)
-        p = self.DA_processes[da.id]['process']
+        t = self.DA_processes[da.id]['thread']
+        logger.debug("Joining Thread of '{0}'".format(da.id))
+        t.join()
+        logger.debug("Joined Thread of '{0}'".format(da.id))
+        mod = self.DA_processes[da.id]['module']
+        del mod
         # Wait until process terminates (without using p.wait())
         #
         #
@@ -189,7 +204,10 @@ class TaskHarmoniserAgent(object):
                 self.execField = None
         self.request_table.removeRecord_by_id(da.id)
         # self.queue.pop(da["da_id"], None)
-        p = self.DA_processes[da.id]['process']
+        t = self.DA_processes[da.id]['thread']
+        logger.debug("Joining Thread of '{0}'".format(da.id))
+        t.join()
+        logger.debug("Joined Thread of '{0}'".format(da.id))
         # Wait until process terminates (without using p.wait())
         #
         #
@@ -406,7 +424,7 @@ class TaskHarmoniserAgent(object):
         cmd = CMD(recipient_name = da_id, cmd = signal, data = data)
         logger.debug (cmd)
         
-        self.tasker_communicator.pub_cmd(cmd)
+        self.tasker_communicator.call_cmd(cmd, cmd.recipient_name)
         #self.cmd_pub.publish(cmd)
 
     def suspendDA(self, set_exemplary_susp_task = False):
@@ -436,8 +454,8 @@ class TaskHarmoniserAgent(object):
         if da.state == ['END']:
                 # print ("THA -> DA <"+da["da_name"]+"> in END state")
             return False
-        p = self.DA_processes[da.id]['process']
-        if not p.poll() is None :
+        p = self.DA_processes[da.id]['thread']
+        if not p.is_alive():
                 return False        
         return True
 
@@ -450,8 +468,8 @@ class TaskHarmoniserAgent(object):
                 # print ("THA -> DA <"+da["da_name"]+"> in END state")
             self.lock.release()
             return False
-        p = self.DA_processes[da.id]['process']
-        if not p.poll() is None :
+        p = self.DA_processes[da.id]['thread']
+        if not p.is_alive() :
                 return False                 
         self.lock.release()
         return True
@@ -550,6 +568,13 @@ class TaskHarmoniserAgent(object):
             req[1].set_burst_time(burst_time)
     
     def schedule_smit(self, cost_file):
+        for task in self.request_table.items():
+            if task[1].state == ['END']:
+                self.removeDA(task[1])
+                # if self.queue.has_key(data.da_id):
+                #     self.removeDA(self.queue[data.da_id])
+                # else:
+                #     logger.info("This DA: <'{0}'> is not found in THA table, probaly is already removed".format(str(data.da_name)))
         #
         # plan to get burst times for tke tasks
         #

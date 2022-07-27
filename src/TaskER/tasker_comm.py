@@ -278,24 +278,49 @@ class TaskerSub():
 		self.closed = True
 
 class TaskerRpc():
-	def __init__(self, logger):
-		self.callback = None
+	def __init__(self, logger, rpc_name):
+		self.callbacks = []
 		self.logger = logger
 		self.closed = False
+		self.rpc_name = rpc_name
+		self.lock = threading.Lock()
+		self.da_ids = []
 		# self.msg = None
-	def call(self, req):
-		while self.callback is None:
-			self.logger.warning("Callback of TaskerRpc is not set")
+	def call(self, req, id=None):
+		self.lock.acquire()
+		while len(self.callbacks) == 0:
+			self.logger.warning("No Callback of TaskerRpc is set")
 			time.sleep(0.2)
 			if self.closed:
+				self.logger.warning("RCP tasker is closed")
+				self.lock.release()
 				return None
-		return self.callback(req)
+		self.logger.warning("RCP '{0}' send: '{1}'".format(str(self.rpc_name), str(req)))
+		if id is not None and str(id) in self.da_ids:
+			record = filter(lambda x: x['da_id']==str(id),self.callbacks)[0]
+			res = record['callback'](req)
+		else:	
+			for record in self.callbacks:
+				res = record['callback'](req)
+		self.logger.warning("RCP '{0}' received: '{1}'".format(str(self.rpc_name ), str(res)))
+		self.lock.release()
+		return res
 		# if self.sent.wait():
 		# 	return self.msg
 		# self.sent.clear()
-	def set_callback(self, callback):
-		self.callback = callback
-	def close(self):
+
+	def set_callback(self, callback, id = None):
+		self.callbacks.append({'callback':callback, 'da_id':str(id)})
+		if id is not None:
+			self.da_ids.append(str(id))
+
+	def close(self, id):
+		self.logger.warning("callbacks before '{0}' ".format(str(self.callbacks)))
+		self.callbacks[:] = [d for d in self.callbacks if d.get('da_id') != str(id)]
+		self.logger.warning("callbacks after '{0}' ".format(str(self.callbacks)))
+
+	def close_all(self):
+		self.callbacks = []
 		self.closed = True
 		
 class TaskerCommunicator():
@@ -303,18 +328,18 @@ class TaskerCommunicator():
 		global socket_ports
 		self.tha_is_running = True
 		self.sockets = []
-		self.socket_status = TaskerRpc(logger)#init_socket(self.context, socket_ports['status'], 'sub_bind')
+		self.socket_status = TaskerRpc(logger, rpc_name='status')#init_socket(self.context, socket_ports['status'], 'sub_bind')
 		self.sockets.append(self.socket_status)
-		self.socket_cmd = TaskerRpc(logger)#init_socket(self.context, socket_ports['cmd'], 'pub')
+		self.socket_cmd = TaskerRpc(logger, rpc_name='cmd')#init_socket(self.context, socket_ports['cmd'], 'pub')
 		# self.socket_cmd_pub.setsockopt(zmq.LINGER, 1000)
 		self.sockets.append(self.socket_cmd)
-		self.socket_life_tick = TaskerRpc(logger)#init_socket(self.context, socket_ports['tha_life_tick'], 'pub')
+		self.socket_life_tick = TaskerRpc(logger, rpc_name='life_tick')#init_socket(self.context, socket_ports['tha_life_tick'], 'pub')
 		# self.socket_life_tick_pub.setsockopt(zmq.LINGER, 1000)
 		self.sockets.append(self.socket_life_tick)
-		self.socket_cost_cond = TaskerRpc(logger)#init_socket(self.context, socket_ports['cost_cond'], 'client')
+		self.socket_cost_cond = TaskerRpc(logger, rpc_name='cost_cond')#init_socket(self.context, socket_ports['cost_cond'], 'client')
 		# self.socket_cost_cond.setsockopt(zmq.LINGER, 1000)
 		self.sockets.append(self.socket_cost_cond)
-		self.socket_sus_cond =  TaskerRpc(logger)#init_socket(self.context, socket_ports['sus_cond'], 'client')
+		self.socket_sus_cond =  TaskerRpc(logger, rpc_name='sus_cond')#init_socket(self.context, socket_ports['sus_cond'], 'client')
 		# self.socket_sus_cond.setsockopt(zmq.LINGER, 1000)
 		self.sockets.append(self.socket_sus_cond)
 		self.comm_active = True
@@ -327,10 +352,14 @@ class TaskerCommunicator():
 	def isCommActive(self):
 		return self.comm_active
 	
-	def close(self):
-		self.comm_active = False
-		for socket in self.sockets:
-			socket.close()
+	def close(self,id):
+		if id == 'harmoniser':
+			self.comm_active = False
+			for socket in self.sockets:
+				socket.close_all()
+		else:
+			for socket in self.sockets:
+				socket.close(id)
 		# self.tha_is_running = False
 		# while self.tha_is_running:
 		# 	try:
@@ -345,24 +374,24 @@ class TaskerCommunicator():
 	def call_status(self, msg):
 		self.socket_status.call(msg)
 
-	def set_status(self, callback):
-		return self.socket_status.set_callback(callback)
+	def set_status(self, callback, id =None):
+		return self.socket_status.set_callback(callback, id)
 
-	def call_cmd(self, msg):
-		self.socket_cmd.call(msg)
+	def call_cmd(self, msg, id =None):
+		self.socket_cmd.call(msg, id)
 
-	def set_cmd(self, callback):
-		return self.socket_cmd.set_callback(callback)
+	def set_cmd(self, callback, id =None):
+		return self.socket_cmd.set_callback(callback, id)
 
-	def call_cost_cond(self, msg):
-		return self.socket_cost_cond.call(msg)
+	def call_cost_cond(self, msg, id =None):
+		return self.socket_cost_cond.call(msg, id)
 
-	def set_cost_cond(self, callback):
-		self.socket_cost_cond.set_callback(callback)
+	def set_cost_cond(self, callback, id =None):
+		self.socket_cost_cond.set_callback(callback, id)
 
-	def call_sus_cond(self, msg):
-		return self.socket_sus_cond.call(msg)
+	def call_sus_cond(self, msg, id =None):
+		return self.socket_sus_cond.call(msg, id)
 
-	def set_sus_cond(self, callback):
-		self.socket_sus_cond.set_callback(callback)
+	def set_sus_cond(self, callback, id =None):
+		self.socket_sus_cond.set_callback(callback, id)
 
