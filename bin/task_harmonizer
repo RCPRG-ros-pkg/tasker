@@ -95,9 +95,7 @@ class TaskHarmonizer:
     def spin(self):
         try:
             while not rospy.is_shutdown():
-                print "getting tasks"
                 queue = self.tha.getTasks()
-                print "got tasks"
                 # [interrupting, executing] = self.tha.getInterruptingAndExecuting()
                 if not self.pending_task_request is None:
                     print "None pending task"

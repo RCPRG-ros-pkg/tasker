@@ -1059,10 +1059,10 @@ class TaskHarmoniserAgent(object):
                 max_sleep_counter = 6
                 sleep_counter = 0
                 while self.getDALastCMD(commanding_da.id) in ['start','resume'] \
-                        and commanding_da.state[0] in ["Wait", "Init", "UpdateTask"]:
+                        and commanding_da.state[0] in ["Wait", "Initialise", "UpdateTask"]:
                     logger.debug ("[Switch] -- while last cmd")
                     sleep_counter = sleep_counter + 1
-                    # while commanding DA stays in ["Wait", "init", "UpdateTask"] longer then max_sleep_counter after ['start','resume'] signal,
+                    # while commanding DA stays in ["Wait", "Initialise", "UpdateTask"] longer then max_sleep_counter after ['start','resume'] signal,
                     # terminate the commanding DA
                     if max_sleep_counter == sleep_counter:
                         self.set_DA_signal(da_id=commanding_da.id, signal = "terminate", data = ["priority", self._switch_priority,
@@ -1119,18 +1119,18 @@ class TaskHarmoniserAgent(object):
             # print (srv_name)
             # print("\nSWITCHING: waiting for QUEUED startTask\n")
             # rospy.wait_for_service(srv_name, timeout=2)
-            logger.error ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+            logger.error ("\nSWITCHING: waiting for QUEUED to be in Initialise or Wait. It is in <"'{0}' "> state.".format(
                         self.request_table.get_requst(interrupting).state[0]))
-            while not self.request_table.get_requst(interrupting).state[0] in ["Wait", "Init"]:
+            while not self.request_table.get_requst(interrupting).state[0] in ["Wait", "Initialise"]:
                 if rospy.is_shutdown():
                     return 
-                logger.error ("\nSWITCHING: waiting for QUEUED to be in Init or Wait. It is in <"'{0}' "> state.".format(
+                logger.error ("\nSWITCHING: waiting for QUEUED to be in Initialise or Wait. It is in <"'{0}' "> state.".format(
                         self.request_table.get_requst(interrupting).state[0]))
                 r.sleep()
 
             if self.request_table.get_requst(interrupting).state[0]=="Wait":
                 self.set_DA_signal(da_id=interrupting, signal = "resume", data = [])
-            elif self.request_table.get_requst(interrupting).state[0]=="Init":
+            elif self.request_table.get_requst(interrupting).state[0]=="Initialise":
                 self.set_DA_signal(da_id=interrupting, signal = "start", data = [])
 
             # print("\nSWITCHING: waiting for STARTED hold_now\n")

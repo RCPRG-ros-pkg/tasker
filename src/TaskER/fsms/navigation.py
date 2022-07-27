@@ -19,8 +19,8 @@ import std_srvs.srv as std_srvs
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 from TaskER.TaskER import TaskER
-from task_manager import PoseDescription
-import smach_rcprg
+# from task_manager import PoseDescription
+from rcprg_smach import smach_rcprg
 from rcprg_smach.hazard_detector import HazardDetector
 from tiago_smach import tiago_torso_controller
 from pal_common_msgs.msg import DisableAction, DisableActionGoal, DisableGoal
@@ -28,6 +28,11 @@ from control_msgs.msg import PointHeadAction, PointHeadActionGoal, PointHeadGoal
 from actionlib_msgs.msg import GoalID
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 NAVIGATION_MAX_TIME_S = 100
+
+
+class PoseDescription:
+    def __init__(self, parameters):
+        self.parameters = parameters
 
 def makePose(x, y, theta):
     q = quaternion_from_euler(0, 0, theta)

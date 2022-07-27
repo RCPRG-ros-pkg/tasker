@@ -171,8 +171,8 @@ class DynAgent:
             self.da_state = ['Init']
         else:
             #print "update, states: ", self.getActiveStates( self.main_sm )
-            self.logger.error("updateStatus calls getActiveStates")
             self.da_state = self.getActiveStates( self.main_sm )[0]
+        self.logger.error("updateStatus (id: '{0}', state: '{1}')".format(self.da_id, self.da_state))
 
         my_status = Status()
         my_status.da_id = self.da_id
@@ -200,9 +200,9 @@ class DynAgent:
                 fsm_data = ["cmd", "start"]
                 fsm_data.extend(data.data)
                 self.startTask(fsm_data)
-                self.logger.error( "cmd_handler updating status")
-                self.updateStatus()
-                self.logger.error( "cmd_handler updated status")
+                # self.logger.error( "cmd_handler updating status")
+                # self.updateStatus()
+                # self.logger.error( "cmd_handler updated status")
                 # self.hold_service = rospy.Service(self.node_namespace+"/hold_now", Trigger, lambda : None )
             elif data.cmd == "susp" and self.da_state[0] == "ExecFSM":
                 # self.hold_service.shutdown()
@@ -212,9 +212,9 @@ class DynAgent:
                 fsm_data = ["cmd", "susp"]
                 fsm_data.extend(data.data)
                 self.suspTask(fsm_data)
-                self.logger.error( "susp cmd_handler updating status")
-                self.updateStatus()
-                self.logger.error( "susp cmd_handler updated status")
+                # self.logger.error( "susp cmd_handler updating status")
+                # self.updateStatus()
+                # self.logger.error( "susp cmd_handler updated status")
             elif data.cmd == "resume" and self.da_state[0] == "Wait":
                 #self.start_service.shutdown()
                 # self.cost_cond_srv.shutdown()
@@ -269,8 +269,8 @@ class DynAgent:
         #rospy.on_shutdown( ssm.on_shutdown )
         if not self.terminateFlag:
             self.logger.debug ( "starting status send thread")
-            thread_status = threading.Thread(target=self.sendStatusThread, args=(1,))
-            thread_status.start()
+            # thread_status = threading.Thread(target=self.sendStatusThread, args=(1,))
+            # thread_status.start()
             self.logger.debug ( "started status send thread")
             # self.logger.debug ( "starting cmd recv thread")
             # thread_cmd = threading.Thread(target=self.recvCMDThread, args=(1,))
@@ -289,11 +289,12 @@ class DynAgent:
             self.main_sm.userdata.susp_data = self.da_suspend_request
             smach_thread = threading.Thread(target=self.main_sm.execute, args=(smach.UserData(),))
             smach_thread.start()
+            self.is_initialised = True
             # wait for start signal          
             #self.start_service = rospy.Service(self.node_namespace+"/startTask", Trigger, lambda : None )
             while True:
                 self.logger.debug ( "RUNNING")
-                self.updateStatus()
+                # self.updateStatus()
                 if self.startFlag:
                     break 
                 if self.terminateFlag:
@@ -301,7 +302,7 @@ class DynAgent:
                     #self.start_service.shutdown()
                     ssm.on_shutdown(None, None)
                     smach_thread.join()
-                    thread_status.join()
+                    # thread_status.join()
                     # thread_cmd.join()
                     # thread_cost_cond.join()
                     # thread_susp_cond.join()
@@ -309,7 +310,6 @@ class DynAgent:
                 sleep_rate(1)
             #self.start_service.shutdown()
             self.logger.debug ( 'Smach thread is running')
-            self.is_initialised = True
             # setup suspend condition handler 
             # self.susp_cond_name = self.node_namespace + "/get_suspend_conditions"
             # self.susp_cond_srv = rospy.Service(self.susp_cond_name, SuspendConditions, self.suspendConditionHandler)
@@ -318,7 +318,7 @@ class DynAgent:
             self.logger.debug ( "SMACH JOINED")
             self.terminateDA()
             self.logger.debug ( "SMACH terminateDA")
-            thread_status.join()
+            # thread_status.join()
             self.logger.debug ( "SMACH thread_status")
             # thread_cmd.join()
             # self.logger.debug ( "SMACH thread_cmd")

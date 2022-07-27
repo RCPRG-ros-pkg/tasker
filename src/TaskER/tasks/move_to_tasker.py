@@ -10,7 +10,7 @@ import smach_ros
 
 import rcprg_smach.conversation
 # import rcprg_smach.navigation
-import fsms.navigation
+from TaskER.fsms import navigation
 import rcprg_kb.places_xml as kb_p
 
 from rcprg_smach.task_manager import PoseDescription
@@ -98,9 +98,9 @@ class MyTaskER(TaskER):
         print 'got place'
 
         if pl.isDestinationHuman():
-            self.my_fsm = fsms.navigation.MoveToHumanComplex(self.sim_mode, self, self.conversation_interface, self.kb_places)
+            self.my_fsm = navigation.MoveToHumanComplex(self.sim_mode, self, self.conversation_interface, self.kb_places)
         else:
-            self.my_fsm = fsms.navigation.MoveToComplex(self.sim_mode, self, self.conversation_interface, self.kb_places)
+            self.my_fsm = navigation.MoveToComplex(self.sim_mode, self, self.conversation_interface, self.kb_places)
         print 'DA initialised '
 
     def shutdownRequest(self):
@@ -176,9 +176,9 @@ class MyTaskER(TaskER):
             mc_name = 'sim'
         pl = self.kb_places.getPlaceByName(self.userdata.goal.parameters['place_name'], mc_name)
         if pl.isDestinationHuman():
-            self.swap_state('ExecFSM', fsms.navigation.MoveToHumanComplex(self.sim_mode, self, self.conversation_interface, self.kb_places))
+            self.swap_state('ExecFSM', navigation.MoveToHumanComplex(self.sim_mode, self, self.conversation_interface, self.kb_places))
         else:
-            self.swap_state('ExecFSM', fsms.navigation.MoveToComplex(self.sim_mode, self, self.conversation_interface, self.kb_places))
+            self.swap_state('ExecFSM', navigation.MoveToComplex(self.sim_mode, self, self.conversation_interface, self.kb_places))
         if RUNIntrospectionServer:
             self.sis.start()
         # self.my_fsm.set_initial_state(['MoveToKitchen'])

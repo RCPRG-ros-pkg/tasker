@@ -193,6 +193,8 @@ class TaskER(smach_rcprg.StateMachine):
                                         io_keys=io_keys)
 
         def execute(self, userdata):
+            print "send_status_function: ", self.tasker_instance.send_status_function
+            print "tasker_instance: ", self.tasker_instance
             if self.tasker_instance is not None and self.tasker_instance.send_status_function is not None:
                 self.tasker_instance.send_status()
             self._userdata = userdata
