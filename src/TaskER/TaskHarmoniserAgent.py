@@ -1048,6 +1048,8 @@ class TaskHarmoniserAgent(object):
     def switchDA(self):
         r = rospy.Rate(1)
         self.switchIndicator.wait()
+        if not self.tha_is_running:
+            return
         logger.error("\t GOT switch indicator")
         if self.isInterrupting():
             logger.error("\nSWITCHING\n")
@@ -1182,4 +1184,5 @@ class TaskHarmoniserAgent(object):
         # self.time_to_finish = -1
         # self.onResumeData = None
     def shutdown(self):
+        self.tha_is_running =False
         self.switchIndicator.set()

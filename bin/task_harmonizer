@@ -15,6 +15,16 @@ from rcprg_smach.ros_node_utils import get_node_names
 from TaskER.TaskHarmoniserAgent import TaskHarmoniserAgent
 import TaskER.RequestTable as RequestTable
 from datetime import datetime
+from TaskER.task_request_interface import TaskRequestInterface
+import signal
+
+global KILL_THA
+KILL_THA = False
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+    global KILL_THA
+    KILL_THA = True
+    # sys.exit(0)
 
 class TaskSpec:
     def __init__(self, intent_name, task_name, priority, params_names_list):
@@ -24,17 +34,21 @@ class TaskSpec:
         self.params_names_list = params_names_list
 
 class TaskHarmonizer:
-    def __init__(self, task_harmoniser_agent, intent_topics, tasks_spec_list, cached_rapps_path):
+    def __init__(self, task_harmoniser_agent, intent_topic, tasks_spec_list, cached_rapps_path):
+        global KILL_THA
         self.tasks_spec_list = tasks_spec_list
         self.checkForDynamicAgentsRunning()
         self.tha = task_harmoniser_agent
         self.cant_hear_you = False
 
         self.sub_list = []
-        for topic_name in intent_topics:
-            self.sub_list.append( rospy.Subscriber(topic_name, tiago_msgs.msg.Command, self.callback) )
+        # for topic_name in intent_topics:
+        #     self.sub_list.append( rospy.Subscriber(topic_name, tiago_msgs.msg.Command, self.callback) )
         self.pub_rico_filtered_cmd = rospy.Publisher( '/rico_filtered_cmd', tiago_msgs.msg.Command, queue_size=10 )
 
+        self.task_interface = TaskRequestInterface(intent_topic, self.pub_rico_filtered_cmd,
+                                        self.hasTaskSpecByIntent, self.getTaskSpecByIntent,
+                                        self.runTask)
         self.pending_task_request = None
         self.cached_rapps_path = cached_rapps_path
 
@@ -44,11 +58,12 @@ class TaskHarmonizer:
 
         self.task_request_response = None
 
+
         print 'ConversationMachine.__init__: waiting for rico_says ActionServer...'
         #self.rico_says_client = actionlib.SimpleActionClient('rico_says', tiago_msgs.msg.SaySentenceAction)
         #self.rico_says_client.wait_for_server()
         print 'ConversationMachine.__init__: connected to rico_says ActionServer'
-        self._FINISH = False
+        self._FINISH = KILL_THA
         self.debug_file = False
     def hasTaskSpecByIntent(self, intent_name):
         for task_spec in self.tasks_spec_list:
@@ -92,35 +107,35 @@ class TaskHarmonizer:
             print 'Passing forward intent ' + data.intent_name
             self.pub_rico_filtered_cmd.publish( data )
 
-    def spin(self):
-        try:
-            while not rospy.is_shutdown():
-                queue = self.tha.getTasks()
-                # [interrupting, executing] = self.tha.getInterruptingAndExecuting()
-                if not self.pending_task_request is None:
-                    print "None pending task"
-                    print "runnign task task"
-                    self.runTask( self.pending_task_request[0], self.pending_task_request[1] )
-                    print " task started"
-                    self.pending_task_request = None
-                elif len(queue) == 0 and self.tha.isExecuting() != True and self.tha.isInterrupting() != True:
-                    print "len(queue): ", len(queue)
-                    print "self.tha.isExecuting", self.tha.isExecuting()
-                    print "self.tha.isInterrupting", self.tha.isInterrupting()
-                    # There is nothing running, so run the default behaviour
-                    default_task_spec = self.getTaskSpecByIntent('default')
-                    self.pending_task_request = (default_task_spec, {})
-                if self.cant_hear_you:
-                    goal = tiago_msgs.msg.SaySentenceGoal()
-                    goal.sentence = 'niekorzystne warunki pogodowe nie słyszę'
-                    print(goal)
-                    self.cant_hear_you = False
-                rospy.sleep(0.5)
-        except Exception as e:
-            print 'Detected exception in THA spin'
-            print e
-            self.tha.shutdown()
-            self._FINISH = True
+    # def spin(self):
+    #     try:
+    #         while not rospy.is_shutdown():
+    #             queue = self.tha.getTasks()
+    #             # [interrupting, executing] = self.tha.getInterruptingAndExecuting()
+    #             if not self.pending_task_request is None:
+    #                 print "None pending task"
+    #                 print "runnign task task"
+    #                 self.runTask( self.pending_task_request[0], self.pending_task_request[1] )
+    #                 print " task started"
+    #                 self.pending_task_request = None
+    #             elif len(queue) == 0 and self.tha.isExecuting() != True and self.tha.isInterrupting() != True:
+    #                 print "len(queue): ", len(queue)
+    #                 print "self.tha.isExecuting", self.tha.isExecuting()
+    #                 print "self.tha.isInterrupting", self.tha.isInterrupting()
+    #                 # There is nothing running, so run the default behaviour
+    #                 default_task_spec = self.getTaskSpecByIntent('default')
+    #                 self.pending_task_request = (default_task_spec, {})
+    #             if self.cant_hear_you:
+    #                 goal = tiago_msgs.msg.SaySentenceGoal()
+    #                 goal.sentence = 'niekorzystne warunki pogodowe nie słyszę'
+    #                 print(goal)
+    #                 self.cant_hear_you = False
+    #             rospy.sleep(0.5)
+    #     except Exception as e:
+    #         print 'Detected exception in THA spin'
+    #         print e
+    #         self.tha.shutdown()
+    #         self._FINISH = True
 
     def abortCurrentTask(self):
         if self.current_subprocess is None:
@@ -180,16 +195,19 @@ class TaskHarmonizer:
             #self.current_subprocess = subprocess.Popen( args )
             if self.tha.isExecuting():
                 if da_id == executing:
-                    print "The requested task is running"
-                    return
+                    comment = "The requested task is running"
+                    return [da_id, comment]
             if self.tha.isInterrupting():
                 if da_id == interrupting:
-                    print "The requested task interrupts the running behaviour"
+                    comment = "The requested task interrupts the running behaviour"
+                    return [da_id , comment]
                 else:
-                    print "Another task awaits as interrupting agent"
-                    print "The requested task awaits in the queue"
+                    comment = "Another task awaits as interrupting agent."+\
+                                    " The requested task awaits in the queue"
+                    return [da_id , comment]
             else:
-                print "The requested task awaits in the queue"
+                comment = "The requested task awaits in the queue"
+                return [da_id , comment]
         # rospy.sleep(0.1)
 
     def checkForDynamicAgentsRunning(self):
@@ -200,6 +218,8 @@ class TaskHarmonizer:
                     #raise Exception('There are some dynamic agents running out there...\n' + str(active_ros_nodes))
                     pass
     def scheduler(self):
+        global KILL_THA
+        self._FINISH = KILL_THA
         if self.debug_file:
             cost_file = open("./TH_cost", "a+")
         else:
@@ -217,6 +237,10 @@ class TaskHarmonizer:
                     if self.debug_file ==True:
                         cost_file.close()
                     break
+            print 'SCHEDULER FINISHED'
+            cost_file.close()
+            self.tha.shutdown()
+            self._FINISH = True
         except Exception as e:
             print 'Detected exception in THA scheduler'
             print e
@@ -229,7 +253,6 @@ class TaskHarmonizer:
         try:
             while not rospy.is_shutdown():
                 print "\n TH NODE - switcher \n"
-                rospy.sleep(1)
                 self.tha.switchDA()
                 if self._FINISH:
                     break
@@ -240,6 +263,7 @@ class TaskHarmonizer:
 def shdl_function():
     pass
 def main():
+    
     rospy.init_node('rico_task_harmonizer')
     rospy.sleep(0.5)
 
@@ -274,12 +298,12 @@ def main():
 
     rospack = rospkg.RosPack()
     cached_rapps_path = rospack.get_path('rcprg_smach') + '/nodes'
-    th = TaskHarmonizer(tha, ['rico_cmd'], tasks_spec_list, cached_rapps_path)
+    th = TaskHarmonizer(tha, 'rico_cmd', tasks_spec_list, cached_rapps_path)
     scheduler = threading.Thread(target = th.scheduler)
     scheduler.start()
     switcher = threading.Thread(target = th.switcher)
     switcher.start()
-    th.spin()
+    # th.spin()
     print "SPIIIINEED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     switcher.join()
     print "switcher!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -289,6 +313,7 @@ def main():
     del tha
     print "tha!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler)
     main()
 
 '''
