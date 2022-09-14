@@ -94,7 +94,7 @@ class TaskHarmoniserAgent(object):
         logger.debug("\nUPDATE SP\n")
         logger.debug("updateQueueData: '{0}' state: '{1}'\nSP:'{2}'\n".format(data.da_name,data.da_state,data.schedule_params))
 
-        da = self.request_table.get_requst(data.da_id)
+        da = self.request_table.get_request(data.da_id)
         da.shdl_params = data.schedule_params
         da.state = data.da_state
         self.updateDA(da)
@@ -282,9 +282,9 @@ class TaskHarmoniserAgent(object):
     def updateDALastCMD(self, da_id, cmd):
         # type: (int, ScheduleParams) -> None
         self.lock.acquire()
-        self.request_table.get_requst(da_id)
-        if self.request_table.get_requst(da_id) is not None:
-            self.request_table.get_requst(da_id).last_cmd_sent = cmd
+        self.request_table.get_request(da_id)
+        if self.request_table.get_request(da_id) is not None:
+            self.request_table.get_request(da_id).last_cmd_sent = cmd
         # if self.isExecuting():
         #     if self.execField == da_id:
         #         self.execField["last_cmd_sent"] = cmd
@@ -304,9 +304,9 @@ class TaskHarmoniserAgent(object):
         # type: (int, ScheduleParams) -> None
         self.lock.acquire()
 
-        if self.request_table.get_requst(da_id) is not None:
+        if self.request_table.get_request(da_id) is not None:
             self.lock.release()
-            return self.request_table.get_requst(da_id).last_cmd_sent
+            return self.request_table.get_request(da_id).last_cmd_sent
 
         # if self.isExecuting():
         #     if self.execField["da_name"] == da_id:
@@ -325,7 +325,7 @@ class TaskHarmoniserAgent(object):
     def makeInterrupting(self, da_id):
         # type: (int) -> None
         if self.isInterrupting():
-            self.updateDA(self.request_table.get_requst(self.interruptField))
+            self.updateDA(self.request_table.get_request(self.interruptField))
         self.interruptField = da_id
         # del self.queue[da_id]
     def makeExecuting(self):
@@ -334,7 +334,7 @@ class TaskHarmoniserAgent(object):
         #     # print ("=================================")
         #     # print ("adding DA: ", self.execField)
         #     # print ("=================================")
-        #     self.updateDA(self.request_table.get_requst(self.execField))
+        #     self.updateDA(self.request_table.get_request(self.execField))
         #     # print ("=================================")
         #     # print ("queue: ", self.queue)
         #     # print ("=================================")
@@ -434,7 +434,7 @@ class TaskHarmoniserAgent(object):
             self.set_DA_signal(da_id=self.execField, signal = "susp", data = [])
         while not rospy.is_shutdown():
             wait_flag = (self.isDAAlive_with_lock(self.execField) \
-                        and (self.request_table.get_requst(self.execField).state[0]!="Wait"))
+                        and (self.request_table.get_request(self.execField).state[0]!="Wait"))
             if wait_flag:
                 logger.info("Switch thread waits for exec_da to be WAIT or DEAD")
                 rospy.Rate(5).sleep()
@@ -446,7 +446,7 @@ class TaskHarmoniserAgent(object):
                 break
         self.lock.acquire()
         logger.debug ("EXEDA: '{0}'".format(exe_da))
-        self.updateDA(self.request_table.get_requst(exe_da))
+        self.updateDA(self.request_table.get_request(exe_da))
         self.lock.release()
 
     def isDAAlive_no_lock(self, da):
@@ -586,7 +586,7 @@ class TaskHarmoniserAgent(object):
         for task in priority_schedule:
             if task.within(datetime.now()):
                 candidate = task.jobID
-                if self.request_table.get_requst(candidate).priority != -1:
+                if self.request_table.get_request(candidate).priority != -1:
                     break
                 else:
                     candidate = None
@@ -596,7 +596,7 @@ class TaskHarmoniserAgent(object):
         logger.debug("Got candidate '{0}'".format(str(candidate)))
         if candidate != self.execField and candidate != self.interruptField:
             logger.debug("setting candidate '{0}'".format(str(candidate)))
-            self.updateIrrField(self.request_table.get_requst(candidate), switch_priority='normal', cost_file=cost_file)
+            self.updateIrrField(self.request_table.get_request(candidate), switch_priority='normal', cost_file=cost_file)
         self.lock.release()
             
 
@@ -1056,7 +1056,7 @@ class TaskHarmoniserAgent(object):
             self.lock.acquire()
             logger.error("\nSWITCHING LOCKED\n")
             if self.isExecuting():
-                commanding_da = self.request_table.get_requst(self.execField)
+                commanding_da = self.request_table.get_request(self.execField)
                 self.lock.release()
                 max_sleep_counter = 6
                 sleep_counter = 0
@@ -1122,29 +1122,29 @@ class TaskHarmoniserAgent(object):
             # print("\nSWITCHING: waiting for QUEUED startTask\n")
             # rospy.wait_for_service(srv_name, timeout=2)
             logger.error ("\nSWITCHING: waiting for QUEUED to be in Initialise or Wait. It is in <"'{0}' "> state.".format(
-                        self.request_table.get_requst(interrupting).state[0]))
-            while not self.request_table.get_requst(interrupting).state[0] in ["Wait", "Initialise"]:
+                        self.request_table.get_request(interrupting).state[0]))
+            while not self.request_table.get_request(interrupting).state[0] in ["Wait", "Initialise"]:
                 if rospy.is_shutdown():
                     return 
                 logger.error ("\nSWITCHING: waiting for QUEUED to be in Initialise or Wait. It is in <"'{0}' "> state.".format(
-                        self.request_table.get_requst(interrupting).state[0]))
+                        self.request_table.get_request(interrupting).state[0]))
                 r.sleep()
 
-            if self.request_table.get_requst(interrupting).state[0]=="Wait":
+            if self.request_table.get_request(interrupting).state[0]=="Wait":
                 self.set_DA_signal(da_id=interrupting, signal = "resume", data = [])
-            elif self.request_table.get_requst(interrupting).state[0]=="Initialise":
+            elif self.request_table.get_request(interrupting).state[0]=="Initialise":
                 self.set_DA_signal(da_id=interrupting, signal = "start", data = [])
 
             # print("\nSWITCHING: waiting for STARTED hold_now\n")
 
             # rospy.wait_for_service(srv_name, timeout=2)
             logger.error ("\nSWITCHING: waiting for STARTED '{0}'to be in UpdateTask or ExecFSM. It is in <"'{1}' "> state.".format(
-                            interrupting, self.request_table.get_requst(interrupting).state[0]))
-            while not self.request_table.get_requst(interrupting).state[0] in ["UpdateTask","ExecFSM"]:
+                            interrupting, self.request_table.get_request(interrupting).state[0]))
+            while not self.request_table.get_request(interrupting).state[0] in ["UpdateTask","ExecFSM"]:
                 if rospy.is_shutdown():
                     return 
                 logger.error ("\nSWITCHING: waiting for STARTED '{0}'to be in UpdateTask or ExecFSM. It is in <"'{1}' "> state.".format(
-                            interrupting, self.request_table.get_requst(interrupting).state[0]))
+                            interrupting, self.request_table.get_request(interrupting).state[0]))
                 rospy.sleep(0.5)
 
             # rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)

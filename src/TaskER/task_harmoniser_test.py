@@ -52,7 +52,7 @@ for i in range(20):
 # shdl_rules=ScheduleRules()
 # shdl_rules.addRule
 # tha.addDA(da_id, da_name=da_name, da_type='transport',shdl_rules=ScheduleRules, req_time)
-print(tha.request_table.get_requst(da_id))
+print(tha.request_table.get_request(da_id))
 f = open("cost_file.txt", "w")
 tha.schedule_smit(cost_file=f)
 print("RUN: ", tha.interruptField)

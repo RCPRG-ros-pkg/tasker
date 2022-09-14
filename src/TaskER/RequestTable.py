@@ -307,13 +307,13 @@ class RequestTable():
         isinstance(record, TaskerReqest)
         self.removeRecord_by_id(record.ID)
 
-    def get_requst(self, record_id):
+    def get_request(self, record_id):
         if record_id not in self.used_ids:
             return None
         return self.dictionary[record_id]
 
     def get_request_copy(self, record_id):
-        return copy.copy(self.get_requst(record_id))
+        return copy.copy(self.get_request(record_id))
 
     def evaluate_all_rules(self):
         for req in self.items():
@@ -453,22 +453,14 @@ class RequestTable():
             cost += conflict_duration + self.calc_delay_task_cost(conflict, conflict_duration)
         return cost
 
-    # return job IDs to be executed in time, starting from the most delayed 
-    # output ={'id': int , 'start': datetime, 'dadline':datetime, 'priority': int}
     def schedule_with_priority(self):
         priority_scheduler = PriorityShdl.PriorityScheduler()
         for req in self.dictionary.items():
             priority_scheduler.addJob(req[1].to_priority_job())
-        self.shdl_result = priority_scheduler.scheduleJobs()
+        self.shdl_result, profit = priority_scheduler.scheduleJobs()
 
         self.shdl_result.scheduled.sort(key=lambda x: x.start, reverse=False)
-        # print (self.shdl_result.rejected)
         self.updateGantt(with_rejected=True)
         self.updateGantt(with_rejected=False)
-        # results = []
-        # for accepted in self.shdl_result.scheduled:
-        #     results.append({'id':accepted.jobID, 'start':accepted.start, 'deadline':accepted.stop, 'priority':self.get_requst(accepted.jobID).priority})
-        # print (results)
-        # return results
-        return self.shdl_result.scheduled
+        return self.shdl_result, profit
 

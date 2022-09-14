@@ -163,7 +163,6 @@ class PriorityScheduler():
             
             if self.debug == True:
                 day_slot.print_slots()
-            print()
             # while j_slot.state:
             #     j_slot = day_slot.get_slot_by_datetime(job.deadline)
 
@@ -176,14 +175,14 @@ class PriorityScheduler():
         # print the scheduled jobs
         print('The scheduled jobs are:')
         for i in shdl_result.scheduled:
-            print(str(i.start)+">>"+str(i.stop)+" ---->"+str(i.jobID))
+            print(str(i.start)+">>"+str(i.stop)+" ----> ID:"+str(i.jobID))
         print('The rejected jobs are:')
         for i in shdl_result.rejected:
             print(str(i))
     
         # print total profit that can be earned
         print('The total profit earned is', profit)
-        return shdl_result
+        return shdl_result, profit
     
  
 # if __name__ == '__main__':
