@@ -118,7 +118,7 @@ class TaskHarmoniserAgent():
         # Wait until process terminates (without using p.wait())
         #
         #
-        
+                                                            
         # while p.poll() is None:
         #     # Process hasn't exited yet, let's wait some
         #     print("TH waits for DA: "+da["da_id"]+" termination")
