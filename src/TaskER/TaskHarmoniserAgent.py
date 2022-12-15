@@ -81,7 +81,7 @@ class TaskHarmoniserAgent():
         args.append( 'da_type' )
         args.append( da_type )
         print 'args:', args
-        run_cmd = [] 
+        run_cmd = []
         #args = ' '.join(map(str, args))
         run_cmd.append(executable)
         run_cmd.extend(args)
@@ -545,7 +545,6 @@ class TaskHarmoniserAgent():
             return False
 
     def schedule_new(self, cost_file):
-        # print("\nSCHEDULE\n")
         self.lock.acquire()
         if len(self.queue) > 0:
             ordered_queue = OrderedDict(sorted(self.queue.items(), 
@@ -647,6 +646,9 @@ class TaskHarmoniserAgent():
             if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
                 cost_file.write(str(self.queue)+"\n")
+            
+            print 'q_BGN', q_BGN
+            print 'DAset_BGN', DAset_BGN
 
             if len(DAset_HF) > 0:
                 if self.debug ==True:

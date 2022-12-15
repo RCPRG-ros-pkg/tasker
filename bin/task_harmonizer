@@ -9,11 +9,14 @@ import threading
 import rosgraph
 import rospy
 import actionlib
+import time
 from std_msgs.msg import String
 import tiago_msgs.msg
 from rcprg_smach.ros_node_utils import get_node_names
-from rcprg_smach.dynamic_config.config_loader import DynamicConfigParser
 from TaskER.TaskHarmoniserAgent import TaskHarmoniserAgent
+from task_database.srv import GetScenarioForIntent, GetTaskSpecForIntent, GetAllTaskNames
+
+min_priority_value = -999
 
 class TaskSpec:
     def __init__(self, intent_name, task_name, priority, params_names_list):
@@ -25,8 +28,10 @@ class TaskSpec:
 class TaskHarmonizer:
     def __init__(self, task_harmoniser_agent, intent_topics, tasks_spec_list, cached_rapps_path):
         self.tasks_spec_list = tasks_spec_list
+        self.get_scenario_for_intent = rospy.ServiceProxy('get_scenario_for_intent', GetScenarioForIntent)
+        self.get_task_spec_for_intent = rospy.ServiceProxy('get_task_spec_for_intent', GetTaskSpecForIntent)
+        self.get_all_tasks_names = rospy.ServiceProxy('get_all_tasks_names', GetAllTaskNames)
         self.checkForDynamicAgentsRunning()
-        self.dynamic_config_parser = DynamicConfigParser()
         self.tha = task_harmoniser_agent
         self.cant_hear_you = False
 
@@ -51,45 +56,75 @@ class TaskHarmonizer:
         self._FINISH = False
         self.debug_file = False
     def hasTaskSpecByIntent(self, intent_name):
-        for task_spec in self.tasks_spec_list:
-            print 'comparing', task_spec, 'with', intent_name
-            if task_spec.intent_name == intent_name:
-                return True
-        return False
+        print 'running hasTaskSpecByIntent'
+        # for task_spec in self.tasks_spec_list:
+        #     print 'comparing', task_spec, 'with', intent_name
+        #     if task_spec.intent_name == intent_name:
+        #         return True
+        # return False
+        try:
+            scenario_spec_by_intent = self.get_scenario_for_intent(intent_name).scenario
+            print 'scenario_spec_by_intent from DB', scenario_spec_by_intent
+            return True
+        except:
+            print 'hasTaskSpecByIntent resp with error'
+            return False
 
     def getTaskSpecByIntent(self, intent_name):
-        for task_spec in self.tasks_spec_list:
-            if task_spec.intent_name == intent_name:
-                return task_spec
-        raise Exception('Could not find task spec for intent "' + intent_name + '"')
+        print 'running getTaskSpecByIntent'
+        # task_spec = None
+        # for _task_spec in self.tasks_spec_list:
+        #     if _task_spec.intent_name == intent_name:
+        #         task_spec = _task_spec
+        
+        # if task_spec is None:
+        #     raise Exception('Could not find task spec for intent "' + intent_name + '"')
+        
+        # task_spec_args = (task_spec.intent_name, task_spec.task_name, task_spec.priority, task_spec.params_names_list)
 
-    def getTaskSpecByName(self, task_name):
-        for task_spec in self.tasks_spec_list:
-            if task_spec.task_name == task_name:
-                return task_spec
-        raise Exception('Could not find task spec for task_name "' + intent_name + '"')
+        if not self.hasTaskSpecByIntent(intent_name):
+            raise Exception('Could not find task spec for intent "' + intent_name + '"')
+
+        task_spec_args = self.get_task_spec_for_intent(intent_name).task_spec
+
+        task_spec = TaskSpec(task_spec_args.intent, task_spec_args.name, task_spec_args.priority, task_spec_args.params)
+
+        if task_spec.priority == min_priority_value:
+            print 'min_priority_value'
+            task_spec.priority = float('-inf')
+
+        return task_spec
+
+
+    # def getTaskSpecByName(self, task_name):
+    #     for task_spec in self.tasks_spec_list:
+    #         if task_spec.task_name == task_name:
+    #             return task_spec
+    #     raise Exception('Could not find task spec for task_name "' + intent_name + '"')
 
     def callback(self, data):
         print 'income intent data ', data
 
-        param_dict = {
-            'original_query': data.query_text,
-            'intent_name': data.intent_name
-        }
-
-        for param_name, param_value in zip(data.param_names, data.param_values):
-            param_dict[param_name] = param_value
-            print 'param_name, param_value', param_name, param_value
-
-        task = None
-        print u'data.intent_name: "{}"'.format(data.intent_name)
         if data.intent_name == '':
             self.cant_hear_you = True
         elif self.hasTaskSpecByIntent(data.intent_name):
             print 'has task for intent'
             task_spec = self.getTaskSpecByIntent(data.intent_name)
+
             if not self.pending_task_request is None:
                 print 'ERROR: pending task request "' + str(self.pending_task_request[0]) + '" was not consumed an ne intent for task "' + task_spec.task_name + '" arrived'
+
+            scenario = self.get_scenario_for_intent(data.intent_name).scenario
+
+            param_dict = {
+                'original_query': data.query_text,
+                'intent_name': data.intent_name,
+                'scenario_id': str(scenario.id)
+            }
+
+            for param_name, param_value in zip(data.param_names, data.param_values):
+                param_dict[param_name] = param_value
+
             task_param_map = {}
             for param_name in task_spec.params_names_list:
                 if not param_name in param_dict:
@@ -204,10 +239,18 @@ class TaskHarmonizer:
         # rospy.sleep(0.1)
 
     def checkForDynamicAgentsRunning(self):
+        # active_ros_nodes = get_node_names()
+        # for task_spec in self.tasks_spec_list:
+        #     for node_name in active_ros_nodes:
+        #         if '/' + task_spec.task_name == node_name:
+        #             #raise Exception('There are some dynamic agents running out there...\n' + str(active_ros_nodes))
+        #             pass
         active_ros_nodes = get_node_names()
-        for task_spec in self.tasks_spec_list:
+        task_names = self.get_all_tasks_names().names
+        print 'checkForDynamicAgentsRunning', task_names
+        for task_name in task_names:
             for node_name in active_ros_nodes:
-                if '/' + task_spec.task_name == node_name:
+                if '/' + task_name == node_name:
                     #raise Exception('There are some dynamic agents running out there...\n' + str(active_ros_nodes))
                     pass
     def scheduler(self):
@@ -253,35 +296,34 @@ def shdl_function():
 def main():
     rospy.init_node('rico_task_harmonizer')
     rospy.sleep(0.5)
+    rospy.wait_for_service('get_scenario_for_intent')
+    rospy.wait_for_service('get_task_spec_for_intent')
+    rospy.wait_for_service('get_all_tasks_names')
 
     print 'Currently running nodes:'
     print get_node_names()
     tha = TaskHarmoniserAgent()
     # TODO: read map of intents to tasks from file downloaded from cloud (RAPP Store)
     # intent_name -> (task_name, task_param_names)
-    dynamic_cfg_parser = DynamicConfigParser()
 
-    tasks_from_config = dynamic_cfg_parser.get_tasks()
-
-    print tasks_from_config
-
-    tasks_args = tasks_from_config + [
-        ('BG', 'bring_goods_tasker', 5, ['przedmiot']),
-        ('GH', 'guide_human_tasker', 5, ['human_name', 'guide_destination']),
-        ('HF', 'human_fell_tasker', 9, ['human_name']),
-        ('BJ', 'bring_jar_tasker', 5, ['object_container','bring_destination','end_pose']),
-        ('MT', 'move_to_tasker', 5, ['miejsce']),
-        ('BGN', 'bring_goods_new_tasker', 5, ['przedmiot']),
-        ('projects/robot-rico-qrct/agent/intents/0165eceb-9621-4a7d-aecc-7a879951da18', 'move_to_tasker', 5, ['miejsce']),
-        ('projects/robot-rico-qrct/agent/intents/7acd4325-4cdd-4e15-99be-ad545f4dddd5', 'stop', 10, []),
-        ('projects/robot-rico-qrct/agent/intents/d9e96166-030b-442f-a513-d3fa2e044030', 'wander', 5, []),
-        ('intent_call', 'call', 1, ['miejsce']),
-        ('default', 'idle_tasker', float('-inf'), []),
-        # TESTS:
-        ('test_bring_goods', 'test_bring_goods', 0, ['przedmiot']),
-        ('test_move_to', 'test_move_to', 0, ['miejsce']),
-        ('test_stop', 'stop', 10, []),
-        ('test_wander', 'test_wander', 0, []),
+    tasks_args = [
+        # ('BG', 'bring_goods_tasker', 5, ['przedmiot']),
+        # ('projects/robot-rico-qrct/agent/intents/176ab2ca-6250-4227-985b-cc82d5497d9f', 'bring_goods_new_tasker', 5, ['przedmiot', 'original_query', 'intent_name']),
+        # ('GH', 'guide_human_tasker', 5, ['human_name', 'guide_destination']),
+        # ('HF', 'human_fell_tasker', 9, ['human_name']),
+        # ('BJ', 'bring_jar_tasker', 5, ['object_container','bring_destination','end_pose']),
+        # ('MT', 'move_to_tasker', 5, ['miejsce']),
+        # ('BGN', 'bring_goods_new_tasker', 5, ['przedmiot']),
+        # ('projects/robot-rico-qrct/agent/intents/0165eceb-9621-4a7d-aecc-7a879951da18', 'move_to_tasker', 5, ['miejsce']),
+        # ('projects/robot-rico-qrct/agent/intents/7acd4325-4cdd-4e15-99be-ad545f4dddd5', 'stop', 10, []),
+        # ('projects/robot-rico-qrct/agent/intents/d9e96166-030b-442f-a513-d3fa2e044030', 'wander', 5, []),
+        # ('intent_call', 'call', 1, ['miejsce']),
+        # ('default', 'idle_tasker', float('-inf'), []),
+        # # TESTS:
+        # ('test_bring_goods', 'test_bring_goods', 0, ['przedmiot']),
+        # ('test_move_to', 'test_move_to', 0, ['miejsce']),
+        # ('test_stop', 'stop', 10, []),
+        # ('test_wander', 'test_wander', 0, []),
     ]
     
     tasks_spec_list = list(map(lambda args: TaskSpec(*args), tasks_args))
