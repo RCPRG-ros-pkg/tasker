@@ -21,7 +21,7 @@ class TaskHarmoniserAgent():
         self.lock = threading.Lock()
         self.queue = {}
         self.tasker_communicator =  THACommunicator()
-        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
+        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped, queue_size=10)
         #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
         self.execField = {}

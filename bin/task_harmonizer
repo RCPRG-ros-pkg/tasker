@@ -14,9 +14,11 @@ from std_msgs.msg import String
 import tiago_msgs.msg
 from rcprg_smach.ros_node_utils import get_node_names
 from TaskER.TaskHarmoniserAgent import TaskHarmoniserAgent
-from task_database.srv import GetScenarioForIntent, GetTaskSpecForIntent, GetAllTaskNames
-
-min_priority_value = -999
+from task_database.srv import GetTaskSpecForIntent, GetTaskSpecForIntentResponse
+from task_database.srv import GetAllTaskNames, GetAllTaskNamesResponse
+from task_database.srv import GetScenarioForIntent, GetScenarioForIntentResponse
+from rico_context.msg import HistoryEvent
+from task_database.srv import GetTaskDescription, GetTaskDescriptionResponse
 
 class TaskSpec:
     def __init__(self, intent_name, task_name, priority, params_names_list):
@@ -26,12 +28,16 @@ class TaskSpec:
         self.params_names_list = params_names_list
 
 class TaskHarmonizer:
-    def __init__(self, task_harmoniser_agent, intent_topics, tasks_spec_list, cached_rapps_path):
-        self.tasks_spec_list = tasks_spec_list
-        self.get_scenario_for_intent = rospy.ServiceProxy('get_scenario_for_intent', GetScenarioForIntent)
-        self.get_task_spec_for_intent = rospy.ServiceProxy('get_task_spec_for_intent', GetTaskSpecForIntent)
-        self.get_all_tasks_names = rospy.ServiceProxy('get_all_tasks_names', GetAllTaskNames)
+    def __init__(self, task_harmoniser_agent, intent_topics, cached_rapps_path):
+        # self.tasks_spec_list = tasks_spec_list
+        self.get_task_spec_for_intent_srv = rospy.ServiceProxy('get_task_spec_for_intent', GetTaskSpecForIntent)
+        self.get_all_tasks_names_srv = rospy.ServiceProxy('get_all_tasks_names', GetAllTaskNames)
+        self.get_scenario_for_intent_srv = rospy.ServiceProxy('get_scenario_for_intent', GetScenarioForIntent)
+        self.get_task_description_srv = rospy.ServiceProxy('get_task_description', GetTaskDescription)
+        self.context_pub = rospy.Publisher('/context/push', HistoryEvent, queue_size=10)
+
         self.checkForDynamicAgentsRunning()
+        # self.dynamic_config_parser = DynamicConfigParser()
         self.tha = task_harmoniser_agent
         self.cant_hear_you = False
 
@@ -56,58 +62,41 @@ class TaskHarmonizer:
         self._FINISH = False
         self.debug_file = False
     def hasTaskSpecByIntent(self, intent_name):
-        print 'running hasTaskSpecByIntent'
-        # for task_spec in self.tasks_spec_list:
-        #     print 'comparing', task_spec, 'with', intent_name
-        #     if task_spec.intent_name == intent_name:
-        #         return True
-        # return False
-        try:
-            scenario_spec_by_intent = self.get_scenario_for_intent(intent_name).scenario
-            print 'scenario_spec_by_intent from DB', scenario_spec_by_intent
-            return True
-        except:
-            print 'hasTaskSpecByIntent resp with error'
+        task_spec = self.get_task_spec_for_intent_srv(intent_name)
+        if task_spec is None:
             return False
+        return True
 
     def getTaskSpecByIntent(self, intent_name):
-        print 'running getTaskSpecByIntent'
-        # task_spec = None
-        # for _task_spec in self.tasks_spec_list:
-        #     if _task_spec.intent_name == intent_name:
-        #         task_spec = _task_spec
-        
-        # if task_spec is None:
-        #     raise Exception('Could not find task spec for intent "' + intent_name + '"')
-        
-        # task_spec_args = (task_spec.intent_name, task_spec.task_name, task_spec.priority, task_spec.params_names_list)
+        task_spec = self.get_task_spec_for_intent_srv(intent_name)
+        if task_spec is None:
+            raise Exception('Could not find task spec for intent_name "' + intent_name + '"')
+        return TaskSpec(task_spec.task_spec.intent, task_spec.task_spec.name, task_spec.task_spec.priority, task_spec.task_spec.params)
 
-        if not self.hasTaskSpecByIntent(intent_name):
-            raise Exception('Could not find task spec for intent "' + intent_name + '"')
-
-        task_spec_args = self.get_task_spec_for_intent(intent_name).task_spec
-
-        task_spec = TaskSpec(task_spec_args.intent, task_spec_args.name, task_spec_args.priority, task_spec_args.params)
-
-        if task_spec.priority == min_priority_value:
-            print 'min_priority_value'
-            task_spec.priority = float('-inf')
-
-        return task_spec
-
-
-    # def getTaskSpecByName(self, task_name):
-    #     for task_spec in self.tasks_spec_list:
-    #         if task_spec.task_name == task_name:
-    #             return task_spec
-    #     raise Exception('Could not find task spec for task_name "' + intent_name + '"')
 
     def callback(self, data):
         print 'income intent data ', data
 
+        scenario = self.get_scenario_for_intent_srv(data.intent_name)
+
+        print 'scenario_id', scenario.scenario.id
+
+        param_dict = {
+            'original_query': data.query_text,
+            'intent_name': data.intent_name,
+            'scenario_id': str(scenario.scenario.id),
+        }
+
+        for param_name, param_value in zip(data.param_names, data.param_values):
+            param_dict[param_name] = param_value
+            print 'param_name, param_value', param_name, param_value
+
+        task = None
+        intent_name = unicode(data.intent_name, 'utf-8')
+        print u'data.intent_name: "{}"'.format(intent_name)
         if data.intent_name == '':
             self.cant_hear_you = True
-        elif self.hasTaskSpecByIntent(data.intent_name):
+        elif self.hasTaskSpecByIntent(intent_name):
             print 'has task for intent'
             task_spec = self.getTaskSpecByIntent(data.intent_name)
 
@@ -130,6 +119,8 @@ class TaskHarmonizer:
                 if not param_name in param_dict:
                     print 'ERROR: parameter "' + param_name + '" is missing in intent for task "' + task_spec.task_name + '"'
                 task_param_map[param_name] = param_dict[param_name]
+            task_param_map['scenario_id'] = str(scenario.scenario.id)
+            self.context_pub.publish( HistoryEvent('system', 'trigger scenario', str(scenario.scenario.id), '') )
             print 'TASK PARAM MAP', task_param_map
             self.pending_task_request = (task_spec, task_param_map)
         else:
@@ -184,7 +175,7 @@ class TaskHarmonizer:
             if self.current_subprocess is None:
                 break
 
-            if not self.current_subprocess.poll() is None:
+            if not self.curent_subprocess.poll() is None:
                 print 'Task "' + self.current_task[0].task_name + '" has finished'
                 break
 
@@ -222,6 +213,8 @@ class TaskHarmonizer:
         else:
             da_id = self.tha.getNextID()
             print 'INITIALIZING WITH ARGS', args
+            task_desc = self.get_task_description_srv(task_spec.task_name)
+            self.context_pub.publish(HistoryEvent('Rico', 'start performing', '"%s" task' % (task_desc.display_name), task_desc.description))
             self.tha.initialiseDA(executable=executable, da_type=task_spec.task_name,  da_id=da_id, args=args)
             #self.current_subprocess = subprocess.Popen( args )
             if self.tha.isExecuting():
@@ -246,8 +239,7 @@ class TaskHarmonizer:
         #             #raise Exception('There are some dynamic agents running out there...\n' + str(active_ros_nodes))
         #             pass
         active_ros_nodes = get_node_names()
-        task_names = self.get_all_tasks_names().names
-        print 'checkForDynamicAgentsRunning', task_names
+        task_names = self.get_all_tasks_names_srv().names
         for task_name in task_names:
             for node_name in active_ros_nodes:
                 if '/' + task_name == node_name:
@@ -296,41 +288,47 @@ def shdl_function():
 def main():
     rospy.init_node('rico_task_harmonizer')
     rospy.sleep(0.5)
-    rospy.wait_for_service('get_scenario_for_intent')
     rospy.wait_for_service('get_task_spec_for_intent')
     rospy.wait_for_service('get_all_tasks_names')
+    rospy.wait_for_service('get_task_description')
+    # rospy.wait_for_service('get_scenario_for_intent')
 
     print 'Currently running nodes:'
     print get_node_names()
     tha = TaskHarmoniserAgent()
     # TODO: read map of intents to tasks from file downloaded from cloud (RAPP Store)
     # intent_name -> (task_name, task_param_names)
+    # dynamic_cfg_parser = DynamicConfigParser()
 
-    tasks_args = [
-        # ('BG', 'bring_goods_tasker', 5, ['przedmiot']),
-        # ('projects/robot-rico-qrct/agent/intents/176ab2ca-6250-4227-985b-cc82d5497d9f', 'bring_goods_new_tasker', 5, ['przedmiot', 'original_query', 'intent_name']),
-        # ('GH', 'guide_human_tasker', 5, ['human_name', 'guide_destination']),
-        # ('HF', 'human_fell_tasker', 9, ['human_name']),
-        # ('BJ', 'bring_jar_tasker', 5, ['object_container','bring_destination','end_pose']),
-        # ('MT', 'move_to_tasker', 5, ['miejsce']),
-        # ('BGN', 'bring_goods_new_tasker', 5, ['przedmiot']),
-        # ('projects/robot-rico-qrct/agent/intents/0165eceb-9621-4a7d-aecc-7a879951da18', 'move_to_tasker', 5, ['miejsce']),
-        # ('projects/robot-rico-qrct/agent/intents/7acd4325-4cdd-4e15-99be-ad545f4dddd5', 'stop', 10, []),
-        # ('projects/robot-rico-qrct/agent/intents/d9e96166-030b-442f-a513-d3fa2e044030', 'wander', 5, []),
-        # ('intent_call', 'call', 1, ['miejsce']),
-        # ('default', 'idle_tasker', float('-inf'), []),
-        # # TESTS:
-        # ('test_bring_goods', 'test_bring_goods', 0, ['przedmiot']),
-        # ('test_move_to', 'test_move_to', 0, ['miejsce']),
-        # ('test_stop', 'stop', 10, []),
-        # ('test_wander', 'test_wander', 0, []),
-    ]
+    # tasks_from_config = dynamic_cfg_parser.get_tasks()
+
+    # print tasks_from_config
+
+    # tasks_args = tasks_from_config
+    # + [
+    #     ('BG', 'bring_goods_tasker', 5, ['przedmiot']),
+    #     ('GH', 'guide_human_tasker', 5, ['human_name', 'guide_destination']),
+    #     ('HF', 'human_fell_tasker', 9, ['human_name']),
+    #     ('BJ', 'bring_jar_tasker', 5, ['object_container','bring_destination','end_pose']),
+    #     ('MT', 'move_to_tasker', 5, ['miejsce']),
+    #     ('BGN', 'bring_goods_new_tasker', 5, ['przedmiot']),
+    #     ('projects/robot-rico-qrct/agent/intents/0165eceb-9621-4a7d-aecc-7a879951da18', 'move_to_tasker', 5, ['miejsce']),
+    #     ('projects/robot-rico-qrct/agent/intents/7acd4325-4cdd-4e15-99be-ad545f4dddd5', 'stop', 10, []),
+    #     ('projects/robot-rico-qrct/agent/intents/d9e96166-030b-442f-a513-d3fa2e044030', 'wander', 5, []),
+    #     ('intent_call', 'call', 1, ['miejsce']),
+    #     ('default', 'idle_tasker', float('-inf'), []),
+    #     # TESTS:
+    #     ('test_bring_goods', 'test_bring_goods', 0, ['przedmiot']),
+    #     ('test_move_to', 'test_move_to', 0, ['miejsce']),
+    #     ('test_stop', 'stop', 10, []),
+    #     ('test_wander', 'test_wander', 0, []),
+    # ]
     
-    tasks_spec_list = list(map(lambda args: TaskSpec(*args), tasks_args))
+    # tasks_spec_list = list(map(lambda args: TaskSpec(*args), tasks_args))
 
     rospack = rospkg.RosPack()
     cached_rapps_path = rospack.get_path('rcprg_smach') + '/nodes'
-    th = TaskHarmonizer(tha, ['rico_cmd'], tasks_spec_list, cached_rapps_path)
+    th = TaskHarmonizer(tha, ['rico_cmd'], cached_rapps_path)
     scheduler = threading.Thread(target = th.scheduler)
     scheduler.start()
     switcher = threading.Thread(target = th.switcher)
