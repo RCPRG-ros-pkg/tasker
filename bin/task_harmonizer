@@ -103,7 +103,7 @@ class TaskHarmonizer:
             if not self.pending_task_request is None:
                 print 'ERROR: pending task request "' + str(self.pending_task_request[0]) + '" was not consumed an ne intent for task "' + task_spec.task_name + '" arrived'
 
-            scenario = self.get_scenario_for_intent(data.intent_name).scenario
+            scenario = self.get_scenario_for_intent_srv(data.intent_name).scenario
 
             param_dict = {
                 'original_query': data.query_text,
