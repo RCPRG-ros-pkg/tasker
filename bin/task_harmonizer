@@ -107,6 +107,7 @@ class TaskHarmonizer:
                     print 'ERROR: parameter "' + param_name + '" is missing in intent for task "' + task_spec.task_name + '"'
                 task_param_map[param_name] = param_dict[param_name]
             task_param_map['scenario_id'] = str(scenario.id)
+            task_param_map['intent_name'] = data.intent_name
             self.context_pub.publish( HistoryEvent('system', 'trigger scenario', str(scenario.id), '') )
             print 'TASK PARAM MAP', task_param_map
             self.pending_task_request = (task_spec, task_param_map)
