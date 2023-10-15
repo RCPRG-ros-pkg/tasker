@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy 
 from multitasker.srv import *
@@ -59,7 +59,7 @@ def handleNewTaskRequest(req):
     da_name = req.da_name
     cmd = "rosrun "+ package + " "+executable+ " "+da_name+ " "+str(req.task_priority)+ " "+str(req.task_deadline)
     subprocess.Popen(['rosrun', package, executable, da_name, str(req.task_priority), str(req.task_deadline)])
-    isInterrupting = False
+    is_interrupting = False
     set_new_task = False
     status = False
     global current_state
@@ -105,11 +105,11 @@ def handleNewTaskRequest(req):
         #         time.sleep(1)            
         # rospy.spinOnce()
     if current_state.status == 1:
-        isInterrupting = True
+        is_interrupting = True
     else:
-        isInterrupting = False
+        is_interrupting = False
     start_task_srv = rospy.ServiceProxy(requested_task_namespace+'/startTask', StartTask)
-    start_task_srv(isInterrupting)
+    start_task_srv(is_interrupting)
 
     # node = roslaunch.core.Node(package, executable)
 

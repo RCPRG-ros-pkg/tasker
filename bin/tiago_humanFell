@@ -39,11 +39,11 @@ human_posture = "stand"
 return_msg = []
 startFlag = False
 my_priority = 0
-isInterrupting = False
+is_interrupting = False
 
 my_priority = 0 
 my_completion_time = -1
-isInterrupting = False
+is_interrupting = False
 
 dock_pose = [3.70, 1.90, 0.0, 0.0, 0.0, 0.0] # next to entrance | y ~ PI - back to door 
 
@@ -582,7 +582,7 @@ def getSP():
     ros_time = rospy.Time()
     trans = []
     rate = rospy.Rate(5.0)
-    while not rospy.is_shutdown():
+    while rclpy.ok():
         try:
             listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
             (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
@@ -650,7 +650,7 @@ def ptf_suspend_condition(suspend_request):
     ros_time = rospy.Time()
     trans = []
     rate = rospy.Rate(5.0)
-    while not rospy.is_shutdown():
+    while rclpy.ok():
         try:
             listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
             (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
@@ -701,7 +701,7 @@ def ptf_cost_condition(cost_request):
     ros_time = rospy.Time()
     trans = []
     rate = rospy.Rate(5.0)
-    while not rospy.is_shutdown():
+    while rclpy.ok():
         try:
             listener.waitForTransform('/map', '/base_link', ros_time, rospy.Duration(8.0))
             (trans,rot) = listener.lookupTransform('/map', '/base_link', ros_time)
@@ -799,7 +799,7 @@ if __name__== "__main__":
         # wait_for_tiago_init()
 
         add_marker(human_poses[human_id])
-        fsm_DA = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
+        fsm_DA = StateMachine(f2, is_interrupting, da_ID, ptf_update_task, ptf_update_sp, ptf_suspend_condition, ptf_cost_condition)
         fsm_DA.add_state("Start", start, None)
         fsm_DA.add_state("suspending", suspending, None)
         fsm_DA.add_state("move_to_human", move_to_human, None)

@@ -1,3 +1,3 @@
-bool isInterrupting
+bool is_interrupting
 string params
 ---

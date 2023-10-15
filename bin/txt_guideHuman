@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from task_machine.StateMachine import * #StateMachine
 import rospy
@@ -12,7 +12,7 @@ room_number = ""
 startFlag = False
 my_priority = 0 
 my_deadline = -1
-isInterrupting = False
+is_interrupting = False
 
 def blocking_call(queue):
     try:
@@ -180,8 +180,8 @@ def final(cargo_in):
     return
 def startTask(data):
     global startFlag
-    global isInterrupting
-    isInterrupting = data.isInterrupting
+    global is_interrupting
+    is_interrupting = data.is_interrupting
     startFlag = True
     return StartTaskResponse()
 
@@ -209,7 +209,7 @@ if __name__== "__main__":
         global human_name
         global room_number
         global startFlag
-        global isInterrupting
+        global is_interrupting
         
         if da_name == "guideHuman-1":
             human_name = "John"
@@ -226,12 +226,12 @@ if __name__== "__main__":
         conditions_srv = rospy.Service(cond_name, LaunchConditions, getLaunchConditions)
         start_srv = rospy.Service(start_name, StartTask, startTask)
         r = rospy.Rate(10)
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if startFlag:
                 break 
             r.sleep()
         if startFlag:
-            m = StateMachine(f2, isInterrupting)
+            m = StateMachine(f2, is_interrupting)
             m.add_state("Start", start, None)
             m.add_state("move_to_human", move_to_human, None)
             m.add_state("hold_moving", hold_moving, None)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python  
+#!/usr/bin/env python3  
 import roslib
 import rospy
 import rospkg
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     marker_pub.publish(marker)
     marker_pub.publish(marker_name)
     task_reqested = False
-    while not rospy.is_shutdown():
+    while rclpy.ok():
         actor_posture = rospy.get_param(actor_name+"/actor_posture")
         marker_pub.publish(marker)
         if actor_posture == "fell":

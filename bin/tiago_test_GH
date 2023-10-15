@@ -37,11 +37,11 @@ human_posture = "stand"
 return_msg = []
 startFlag = False
 my_priority = 0
-isInterrupting = False
+is_interrupting = False
 
 my_priority = 0 
 my_deadline = -1
-isInterrupting = False
+is_interrupting = False
 
 dock_pose = [3.70, 1.90, 0.0, 0.0, 0.0, 0.0] # next to entrance | y ~ PI - back to door 
 
@@ -877,7 +877,7 @@ if __name__== "__main__":
         listener = tf.TransformListener()
         # wait_for_tiago_init()
 
-        m = StateMachine(f2, isInterrupting, da_ID, ptf_update_task, ptf_update_sp)
+        m = StateMachine(f2, is_interrupting, da_ID, ptf_update_task, ptf_update_sp)
         m.add_state("Start", start, None)
         m.add_state("suspending", suspending, None)
         m.add_state("move_to_human", move_to_human, None)
