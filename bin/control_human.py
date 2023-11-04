@@ -15,13 +15,15 @@ from tf.transformations import *
 import rcprg_kb.places_xml as kb_p
 global vel
 
+debug = False
+
 vel = Twist()
 def handle_actor_vel(msg):
     global vel
     vel = msg
 
 if __name__ == '__main__':
-    global vel
+    # global vel
     places_xml_filename = rospy.get_param('/kb_places_xml')
     sim_mode = str(rospy.get_param('/sim_mode'))
     assert sim_mode in ['sim', 'gazebo', 'real']
@@ -29,7 +31,8 @@ if __name__ == '__main__':
         map_context = 'sim'
     else:
         map_context = 'real'
-    print 'Reading KB for places from file "' + places_xml_filename + '"'
+    if debug:
+        print 'Reading KB for places from file "' + places_xml_filename + '"'
     kb_places = kb_p.PlacesXmlParser(places_xml_filename).getKB()
     vel = Twist()
     rospy.init_node('control_human',anonymous=True)
@@ -47,12 +50,14 @@ if __name__ == '__main__':
         pt_dest = pl.getPt()
         norm = pl.getN()
         angle_dest = math.atan2(norm[1], norm[0])
-        print "angle_dest: ", angle_dest
+        if debug:
+         print "angle_dest: ", angle_dest
         pt = pt_dest
         pt_dest = (pt_dest[0], pt_dest[1])
-        print "pt_dest: ", pt_dest
-        print 'UnderstandGoal place type: point'
-        print 'pt: {}, pt_dest: {}, norm: {}, angle_dest: {}'.format(pt, pt_dest, norm, angle_dest)
+        if debug:
+            print "pt_dest: ", pt_dest
+            print 'UnderstandGoal place type: point'
+            print 'pt: {}, pt_dest: {}, norm: {}, angle_dest: {}'.format(pt, pt_dest, norm, angle_dest)
     else:
         os.kill(pid, signal.SIGHUP)
     human_transform = [pt_dest[0], pt_dest[1], angle_dest]

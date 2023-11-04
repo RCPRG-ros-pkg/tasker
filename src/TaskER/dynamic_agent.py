@@ -105,6 +105,7 @@ class DynAgent:
         self.da_suspend_request.setData(data)
         # self.main_sm.request_preempt()
     def terminateDA(self):
+        print 'terminateDA'
         if not self.terminateFlag == True:
             my_status = Status()
             my_status.da_id = self.da_id
@@ -379,6 +380,7 @@ class DynAgent:
             time.sleep(0.2)
 
     def recvCMDThread(self, args):
+        print 'recvCMDThread'
         while not self.terminateFlag:
             try:
                 self.cmd_handler(self.tasker_communicator.sub_cmd())

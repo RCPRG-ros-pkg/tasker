@@ -28,7 +28,7 @@ class TaskHarmoniserAgent():
         self.lock = threading.Lock()
         self.queue = {}
         self.tasker_communicator =  THACommunicator()
-        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
+        self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped, queue_size=10)
         #self.cmd_pub = rospy.Publisher("/TH/cmd", CMD)
         self.OrderedQueue = {}
         self.execField = {}
@@ -145,7 +145,7 @@ class TaskHarmoniserAgent():
         # Wait until process terminates (without using p.wait())
         #
         #
-        
+                                                            
         # while p.poll() is None:
         #     # Process hasn't exited yet, let's wait some
         #     print("TH waits for DA: "+da["da_id"]+" termination")
@@ -553,6 +553,16 @@ class TaskHarmoniserAgent():
         if DA[1]["da_state"] == 'END':
             return False
         if DA[1]["da_type"] == "move_to_tasker" and DA[1]["priority"] != float('-inf'):
+            return True
+        else:
+            return False
+
+    def filterDA_BGN(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
+        if DA[1]["da_state"] == 'END':
+            return False
+        if DA[1]["da_type"] == "bring_goods_new_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
             return False
@@ -1020,11 +1030,14 @@ class TaskHarmoniserAgent():
             DAset_BJ = {}
             DAset_MT = {}
             DAset_BG = {}
+            DAset_BGN = {}
+            
             cGH = {}
             cHF = {}
             cBJ = {}
             cMT = {}
             cBG = {}
+            cBGN = {}
             # print "Q:"
             # print self.queue
             DAset_GH = filter(self.filterDA_GH, self.queue.items())
@@ -1049,12 +1062,8 @@ class TaskHarmoniserAgent():
             print(DAset_MN)
 
 
-            # print "DAset_GH:"
-            # print DAset_GH
-            # print "DAset_T:"
-            # print DAset_T
-            # DAset_GH = {k: v for k, v in self.queue.tems() if "tiago_guideHuman" in v[1]["da_type"]}
-            # DAset_T = {k: v for k, v in self.queue.iteritems() if "tiago_transport" in v[1]["da_type"]}
+            DAset_BGN = filter(self.filterDA_BGN, self.queue.items())
+            
             q_GH = OrderedDict(sorted(DAset_GH, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_HF = OrderedDict(sorted(DAset_HF, 
@@ -1068,9 +1077,14 @@ class TaskHarmoniserAgent():
             q_MN = OrderedDict(sorted(DAset_MN, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
 
+            q_BGN = OrderedDict(sorted(DAset_BGN, 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
             if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
                 cost_file.write(str(self.queue)+"\n")
+            
+            print 'q_BGN', q_BGN
+            print 'DAset_BGN', DAset_BGN
 
             if len(DAset_HF) > 0:
                 if self.debug ==True:
@@ -1181,6 +1195,14 @@ class TaskHarmoniserAgent():
                     cost_file.write("\n"+"cMN:"+"\n")
                     cost_file.write(str(cMN)+"\n")
                 dac = cMN 
+            elif len(DAset_BGN) > 0:
+                if self.debug ==True:
+                    print "Have BGN"
+                cBGN = next(iter(q_BGN.items()))[1]
+                if self.debug_file == True:
+                    cost_file.write("\n"+"cBGN:"+"\n")
+                    cost_file.write(str(cBGN)+"\n")
+                dac = cBGN 
                 if self.isExecuting():
                     if self.filterDA_HF([None,self.execField]):
                         self.lock.release()
@@ -1191,17 +1213,18 @@ class TaskHarmoniserAgent():
                         self.lock.release()
                         return    
 
+                    elif not self.filterDA_BGN([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return  
             else:
                 if self.isExecuting():
                     if not self.execField["da_type"] == dac["da_type"]:
                         print "Executing a task of a type that has higher priority" 
                         self.lock.release()
                         return 
-            # if not (len(DAset_GH) > 0 or len(DAset_HF) > 0):
-            #     cost_file.write("\n"+"No candidate"+"\n")
-            #     print "No candidate"
-            #     self.lock.release()
-            #     return
+
 
             if self.debug ==True:
                 print "dac: ", dac

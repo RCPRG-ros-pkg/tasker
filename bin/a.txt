@@ -1,0 +1,152 @@
+Currently running nodes:
+['/pal_navigation_sm', '/head_controller/point_head_action', '/map_server', '/is_already_there', '/move_base', '/move_group', '/default_controllers_spawner', '/gazebo', '/robot_pose_publisher', '/tf_lookup', '/amcl', '/robot_state_publisher', '/play_motion', '/twist_marker', '/image_raw_to_rect_color_relay', '/xtion/rgb/image_proc', '/DA_0', '/rosout', '/THA', '/laser_filter', '/amcl_periodic_update', '/bringup_controllers_spawner_imu', '/pointcloud_to_laserscan', '/joystick_relay', '/rviz', '/map_setup', '/map_server_planning', '/twist_mux']
+started cmd thread_tha_alive thread
+/home/nkvch/tiago_public_ws/src/rcprg/tasker/src/TaskER/TaskHarmoniserAgent.py:24: SyntaxWarning: The publisher should be created with an explicit keyword argument 'queue_size'. Please see http://wiki.ros.org/rospy/Overview/Publishers%20and%20Subscribers for more information.
+  self.sdhl_pub = rospy.Publisher("/TH/shdl_data", ShdlDataStamped)
+starting cmd updateQueueDataThread thread
+started cmd updateQueueDataThread thread
+ConversationMachine.__init__: waiting for rico_says ActionServer...
+ConversationMachine.__init__: connected to rico_says ActionServer
+No EXEC dynamic agent
+No INTERRUPTING dynamic agent
+        QUEUE: 
+
+ TH NODE - switcher 
+
+len(queue):  0
+self.tha.isExecuting False
+self.tha.isInterrupting False
+running getTaskSpecByIntent
+DisctionaryServiceServer creating service...
+DisctionaryServiceServer ready.
+running hasTaskSpecByIntent
+scenario_spec_by_intent (11, 11, 11, -99999, 11, 'default')
+task_spec_args ('default', 'idle_tasker', -inf, [])
+task_spec <type 'instance'> default idle_tasker -inf []
+NOW WE ARE GOING TO RUN TASK <__main__.TaskSpec instance at 0x7f96dc5b8820> {}
+Running task "idle_tasker", parameters: {}
+No EXEC dynamic agent
+No INTERRUPTING dynamic agent
+        QUEUE: 
+INITIALIZING WITH ARGS []
+args: ['da_id', '0', 'da_name', 'DA_0', 'da_type', 'idle_tasker']
+cmd:  ['/home/nkvch/tiago_public_ws/src/rcprg/rcprg_smach/nodes/idle_tasker', 'da_id', '0', 'da_name', 'DA_0', 'da_type', 'idle_tasker']
+The requested task awaits in the queue
+Queue before END check:
+OrderedDict([(0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})])
+OQ:
+OrderedDict([(0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})])
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+IN FILTER:  (0, {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'})
+dac:  {'priority': -inf, 'da_id': 0, 'last_cmd_sent': None, 'ping_count': 0, 'da_type': 'idle_tasker', 'scheduleParams': cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0, 'da_state': ['Init'], 'da_name': 'DA_0'}
+No EXEC, NO IRR dynamic agent
+
+IrrField:
+
+         Name: DA_0
+
+No EXEC dynamic agent
+        INTERRUPT: 
+ID:  0
+Cost:  0.0
+SP: 
+cost: 0.0
+completion_time: 0.0
+cost_per_sec: 0.0
+final_resource_state: 
+  robot_position: 
+    x: 0.0
+    y: 0.0
+    z: 0.0 
+
+        QUEUE: 
+
+SWITCHING
+
+('SEND StartTask to initialised: ', 'DA_0')
+
+SWITCHING: waiting for QUEUED to be in Init or Wait. It is in < Init > state.
+set_DA_signal: 
+recipient_name: "DA_0"
+cmd: "start"
+data: []
+
+SWITCHING: waiting for STARTED hold_now
+
+
+SWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in < Init > state.
+
+SWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in < Init > state.
+
+SWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in < Init > state.
+
+SWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in < Init > state.
+
+SWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in < Init > state.

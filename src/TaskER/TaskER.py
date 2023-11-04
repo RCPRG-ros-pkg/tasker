@@ -135,7 +135,7 @@ class TaskER(smach_rcprg.StateMachine):
                 try:
                     tf_result = self.transition_function(userdata)
                 except Exception, e: # work on python 2.x
-                    print('Failed to upload to ftp: '+ str(e))
+                    print('Failed to upload to ftp (BlockingState.execute): '+ str(e))
                     tf_result='error'
                 print "TF returned: ",tf_result
                 if susp_flag is not None:
@@ -208,7 +208,7 @@ class TaskER(smach_rcprg.StateMachine):
                 try:
                     tf_result = self.transition_function(userdata)
                 except Exception, e: # work on python 2.x
-                    print('Failed to upload to ftp: '+ str(e))
+                    print('Failed to upload to ftp (SuspendableState.execute): '+ str(e))
                 print "TF returned: ",tf_result
                 if susp_flag is not None:
                     break
