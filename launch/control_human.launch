@@ -1,0 +1,14 @@
+<launch>
+	<arg name='actor_name' default='John'/>
+	<!--<arg name='actor_init_pose' default="[3, -4, 3.14]"/> -->
+	<!--<arg name='actor_init_pose' default="[0, -1, 0]"/>-->
+	<!-- now initial actor poses are from KB file -->
+	<arg name='actor_gender' default='male'/>
+	<!--<rosparam param="actor_init_pose" subst_value="True">$(arg actor_init_pose)</rosparam>-->
+	<arg name="node_start_delay" default="1.0" /> 
+	<node name='$(anon control_actor)' pkg='tasker' type='control_human.py' output='screen' launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' ">
+		<param name='actor_name' value='$(arg actor_name)'/>
+	<!--	<rosparam param="actor_init_pose" subst_value="True">$(arg actor_init_pose)</rosparam>-->
+		<param name='actor_gender' value='$(arg actor_gender)'/>
+	</node>
+</launch>

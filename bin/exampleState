@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+
+from task_machine.StateMachine import * #StateMachine
+import rospy
+import time 
+positive_adjectives = ["great","super", "fun", "entertaining", "easy"]
+negative_adjectives = ["boring", "difficult", "ugly", "bad"]
+
+def start_transitions_hold(cargo_in, event = None):
+    print "start_transitions_hold: ", cargo_in
+    resumeState = "start"
+    resumeData = "CARGO RESUMEd"
+    return (resumeState, resumeData)
+def my_block():
+	print "my_block"
+	time.sleep(10)
+def start_transitions(cargo_in, event = None):
+    # print "Cargo IN: ", cargo_in
+    # # while True:
+    # # 	time.sleep(1)
+    # # 	print "event: ", event
+    # # 	pass
+    # cargo_out = "new cargo"
+    # holdData = "ZATRZYMAJ"
+    # print "CARGO OUT: ", cargo_out
+    # print "holdData: ", holdData
+    # newState = "start"
+    splitted_txt = cargo_in.split(None,1)
+    word, cargo_out = splitted_txt if len(splitted_txt) > 1 else (cargo_in,"")
+    # run_blocking(my_block(), (None, ))
+    if word == "Python":
+        newState = "Python_state"
+    else:
+        newState = "error_state"
+    return (newState, cargo_out)
+
+def python_state_transitions_hold(txt):
+	print "HOLDING python_state_transitions_hold"
+def python_state_transitions(cargo_in, event = None):
+    print "python_trans"
+    splitted_txt = cargo_in.split(None,1)
+    word, cargo_out = splitted_txt if len(splitted_txt) > 1 else (cargo_in,"")
+    if word == "is":
+        newState = "is_state"
+    else:
+        newState = "error_state"
+    return (newState, cargo_out)
+
+def is_state_transitions_hold(cargo_in, event = None):
+	print "HOLDING is_state_transitions_hold"
+def is_state_transitions(cargo_in, event = None):
+    print "is_trans"
+    splitted_txt = cargo_in.split(None,1)
+    word, cargo_out = splitted_txt if len(splitted_txt) > 1 else (cargo_in,"")
+    if word == "not":
+        newState = "not_state"
+    elif word in positive_adjectives:
+        newState = "pos_state"
+    elif word in negative_adjectives:
+        newState = "neg_state"
+    else:
+        newState = "error_state"
+    return (newState, cargo_out)
+
+def not_state_transitions_hold(cargo_in, event = None):
+	print "HOLDING not_state_transitions_hold"
+def not_state_transitions(cargo_in, event = None):
+    print "not_trans"
+    splitted_txt = cargo_in.split(None,1)
+    word, cargo_out = splitted_txt if len(splitted_txt) > 1 else (cargo_in,"")
+    if word in positive_adjectives:
+        newState = "neg_state"
+    elif word in negative_adjectives:
+        newState = "pos_state"
+    else:
+        newState = "error_state"
+    return (newState, cargo_out)
+
+def neg_state_hold(cargo_in, event = None):
+	print "HOLDING START"
+def neg_state(cargo_in, event = None):
+    print("Hallo")
+    return ("neg_state", "")
+
+if __name__== "__main__":
+    rospy.init_node("exampleState")
+    m = StateMachine()
+    m.add_state("Start", start_transitions, start_transitions_hold)
+    m.add_state("Python_state", python_state_transitions, python_state_transitions_hold)
+    m.add_state("is_state", is_state_transitions,is_state_transitions_hold)
+    m.add_state("not_state", not_state_transitions, not_state_transitions_hold)
+    m.add_state("neg_state", None, end_state=1)
+    m.add_state("pos_state", None, end_state=1)
+    m.add_state("error_state", None, end_state=1)
+    m.set_start("Start")
+    m.run("Python is great")
+    #m.run("Python is difficult")
+    #m.run("Perl is ugly")

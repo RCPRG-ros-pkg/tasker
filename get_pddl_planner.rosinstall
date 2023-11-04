@@ -1,0 +1,16 @@
+- git:
+    local-name: src/
+    uri: 'https://github.com/KCL-Planning/VAL'
+    version: master
+- git:
+    local-name: src/
+    uri: 'https://github.com/aig-upf/universal-pddl-parser.git'
+    version: master
+- git:
+    local-name: src/
+    uri: 'https://github.com/aig-upf/temporal-planning.git'
+    version: master     
+- git:
+    local-name: src/
+    uri: 'https://gitlab.com/dudekw/multitasker.git'
+    version: master

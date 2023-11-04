@@ -1,0 +1,4 @@
+float32 cost
+float32 completion_time
+float32 cost_per_sec
+tasker/RobotResource final_resource_state

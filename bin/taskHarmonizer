@@ -1,0 +1,168 @@
+#!/usr/bin/env python
+
+import rospy 
+from multitasker.srv import *
+from multitasker.msg import *
+from std_srvs.srv import Trigger
+
+import time
+from std_msgs.msg import *
+import multiprocessing
+import threading
+import datetime
+import roslaunch
+import os
+import heapq
+import itertools
+import subprocess
+
+POSTPONED_TASK_ID = 0
+SUSPENDED_TASK_ID = 1
+STARTED_TASK_ID = 2
+
+stop_trigger = False
+is_any_task_launched = False
+
+current_state = TaskState()
+pq = []                         # list of entries arranged in a heap
+entry_finder = {}               # mapping of tasks to entries
+REMOVED = '<removed-task>'      # placeholder for a removed task
+counter = itertools.count()     # unique sequence count
+
+def add_task(task, priority=0, state_id = 0):
+    'Add a new task or update the priority of an existing task'
+    if task in entry_finder:
+        remove_task(task)
+    count = next(counter)
+    # priority, count, da_name, executable, state_id {0 - postponed, 1 - suspended} 
+    entry = [priority, count, task, state_id]
+    entry_finder[task] = entry
+    heapq.heappush(pq, entry)
+
+def remove_task(task):
+    'Mark an existing task as REMOVED.  Raise KeyError if not found.'
+    entry = entry_finder.pop(task)
+    entry[-1] = REMOVED
+
+def pop_task():
+    'Remove and return the lowest priority task. Raise KeyError if empty.'
+    while pq:
+        priority, count, task,state_id = heapq.heappop(pq)
+        if task is not REMOVED:
+            del entry_finder[task]
+            return [task, state_id]
+    raise KeyError('pop from an empty priority queue')
+
+def handleNewTaskRequest(req):
+    package = 'multitasker' 
+    executable = req.application
+    da_name = req.da_name
+    cmd = "rosrun "+ package + " "+executable+ " "+da_name+ " "+str(req.task_priority)+ " "+str(req.task_deadline)
+    subprocess.Popen(['rosrun', package, executable, da_name, str(req.task_priority), str(req.task_deadline)])
+    isInterrupting = False
+    set_new_task = False
+    status = False
+    global current_state
+    is_any_task_launched_local = current_state.status
+    print "NEW request!\n \t app: "+ req.application +"\n \t priority: "+ str(req.task_priority)+"\n \t name: "+ str(req.da_name)
+    current_task_namespace = current_state.node_name + "/multitasking"
+    requested_task_namespace = req.da_name + "/multitasking"
+    print "NAMESPACE: "+current_task_namespace
+    print "cuRRENT TASK STATUS: "+str(is_any_task_launched_local)
+    rospy.wait_for_service(requested_task_namespace+'/get_launch_conditions', timeout=None)
+    rospy.wait_for_service(requested_task_namespace+'/startTask', timeout=None)
+
+    if is_any_task_launched_local == 0:
+        hold_conditions = rospy.ServiceProxy(current_task_namespace+'/get_hold_conditions', HoldConditions)
+        hold_response = hold_conditions()
+        launch_conditions = rospy.ServiceProxy(requested_task_namespace+'/get_launch_conditions', LaunchConditions)
+        launch_response = launch_conditions()
+
+        print "HOLD RESPONSE: \n" + str(hold_response)
+        if launch_response.task_priority > hold_response.priority:
+            hold_srv_name = current_task_namespace+"/hold_now"
+            # resume_topic = current_task_namespace+"/resume_now"
+            print "HOLD SERVICE: "+hold_srv_name
+
+            hold_srv = rospy.ServiceProxy(hold_srv_name, Trigger)
+            hold_srv()
+            while current_state.status not in [1,2]:
+                print "Waiting for current task to hold or terminate"
+                time.sleep(1)
+            add_task(current_state.node_name, hold_response.priority, SUSPENDED_TASK_ID)
+        else:
+            add_task(req.da_name, req.task_priority, POSTPONED_TASK_ID)
+            print "QUEUE SIZE: ", len(pq)
+            return POSTPONED_TASK_ID
+        #     my_priority = req.task_priority
+        #     my_deadline = -1
+        #     while (my_priority <= hold_response.priority)
+        #     launch_conditions = rospy.ServiceProxy(requested_task_namespace+'/get_launch_conditions', LaunchConditions)
+        # hold_response = hold_conditions()
+
+        #     while (current_state.status not in [1,2] ):
+        #         print req.da_name, " : waits for current task to terminate"
+        #         time.sleep(1)            
+        # rospy.spinOnce()
+    if current_state.status == 1:
+        isInterrupting = True
+    else:
+        isInterrupting = False
+    start_task_srv = rospy.ServiceProxy(requested_task_namespace+'/startTask', StartTask)
+    start_task_srv(isInterrupting)
+
+    # node = roslaunch.core.Node(package, executable)
+
+    # launch = roslaunch.scriptapi.ROSLaunch() 
+    # launch.start()
+
+    # process = launch.launch(node) 
+    #while process.is_alive():
+        # print "Waiting for the new task to finish"
+        # time.sleep(1)
+
+    # process.stop()
+    # print "ENDED NEW TASK!!!!!!!!!!!!!S"
+    # if is_any_task_launched_local == 0:
+    #     pub_res.publish("")
+    # status = True
+    return STARTED_TASK_ID
+
+def startQueuedTask():
+    task_data = pop_task()
+    print "task_data: ",task_data
+    print "QUEUE SIZE: ", len(pq)
+    da_namespace = task_data[0] + "/multitasking" 
+    if task_data[1] == POSTPONED_TASK_ID:
+        srv_name = da_namespace  + "/startTask"
+        start_task_srv = rospy.ServiceProxy(srv_name, StartTask)
+        interrupts = False
+        start_task_srv(interrupts)
+    elif task_data[1] == SUSPENDED_TASK_ID:
+        resume_srv = da_namespace  +"/resume_now"
+        resume_task_srv = rospy.ServiceProxy(resume_srv, Trigger)
+        resume_task_srv()
+        # pub_res = rospy.Publisher(resume_topic, String, queue_size=10)
+        # time.sleep(2)
+        # pub_res.publish("")
+    return
+
+def setCurrentState(data):
+    global current_state
+    current_state = data
+    if current_state.status == 2 and len(pq) > 0:
+        startQueuedTask()
+    # print "NEW CY=URRENT sTATE: ", data
+    return
+
+if __name__== "__main__":
+    global current_state
+    rospy.init_node("taskHarmonizer")
+    current_state.status = None
+    srv_name = rospy.get_name()+'/new_task'
+    s = rospy.Service(srv_name, TaskRequest, handleNewTaskRequest)
+    pub_state = rospy.Subscriber('current_state', TaskState, setCurrentState)
+    rospy.spin()
+
+
+
