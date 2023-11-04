@@ -48,6 +48,7 @@ class TaskER(smach_rcprg.StateMachine):
     def isDebug(self):
         return self.debug
     def swap_state(self, label, state):
+
         """Add a state to the opened state machine.
         
         @type label: string
@@ -102,12 +103,13 @@ class TaskER(smach_rcprg.StateMachine):
             smach_rcprg.State.__init__(self, outcomes=['ok'], output_keys=['fsm_es_out'])
 
         def execute(self, userdata):
+            rospy.sleep(3)
             fsm_executable = self.tasker_instance.get_suspension_tf(userdata.susp_data)
             userdata.fsm_es_out = fsm_executable
+            return 'ok'
             # userdata.susp_data.clearData()
             #srv.shutdown()
-            # rospy.sleep(5)
-            return 'ok'
+
 
     class BlockingState(smach_rcprg.State):
         def __init__(self, tf_freq=10, outcomes=[], input_keys=[], output_keys=[], io_keys=[]):
@@ -121,6 +123,10 @@ class TaskER(smach_rcprg.StateMachine):
                                         io_keys=io_keys)
 
         def execute(self, userdata):
+            # print("EXECUTION OF NEW ACTION OF CURRENT TASK")
+            print('\n\n\n\n')
+            print("Execution of blocking state")
+            print('\n\n\n\n')
             self._userdata = userdata
             # rate = rospy.Rate(self.tf_freq)
             tf_result = None
@@ -136,6 +142,16 @@ class TaskER(smach_rcprg.StateMachine):
                     break
                 sleep_rate(self.tf_freq)
                 # rate.sleep()
+                # 
+                # 
+                # dodane sleep() w celu ulatwienia debugowania
+                # 
+                # 
+                # 
+                rospy.sleep(1)
+            
+            print("ACTION OF CURRENT TASK FINISHED")
+
             return tf_result
         def transition_function(self, userdata):
             pass
@@ -181,6 +197,9 @@ class TaskER(smach_rcprg.StateMachine):
                                         io_keys=io_keys)
 
         def execute(self, userdata):
+            print('\n\n\n\n\n')
+            print("Executing suspendable state")
+            print('\n\n\n\n\n')
             self._userdata = userdata
             # rate = rospy.Rate(self.tf_freq)
             tf_result = None
@@ -216,8 +235,9 @@ class TaskER(smach_rcprg.StateMachine):
         def __init__(self, tasker_instance, da_state_name):
             self.tasker_instance = tasker_instance
             da_state_name = "ExeSuspension"
-
             smach_rcprg.State.__init__(self, outcomes=['FINISHED', 'shutdown'],input_keys=['fsm_es_in'])
+            rospy.sleep(5)
+            
 
         def execute(self, userdata):
             transition_name = self.tasker_instance.exe_suspension_tf(userdata.fsm_es_in)
@@ -228,16 +248,16 @@ class TaskER(smach_rcprg.StateMachine):
         def __init__(self, tasker_instance, da_state_name):
             self.tasker_instance = tasker_instance
             da_state_name = "Wait"
-
-
             smach_rcprg.State.__init__(self, outcomes=['start', 'terminate'])
+            # rospy.sleep(5)
 
         def execute(self, userdata):
-            if self.tasker_instance.isDebug() ==True:
-                rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
-                print 'Wait.execute'
+            # if self.tasker_instance.isDebug() ==True:
+            rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
+            print 'Wait.execute'
             #srv.shutdown()
             fsm_cmd = None
+            # rospy.sleep(5)
 
             while not fsm_cmd == "resume":
                 data = userdata.susp_data.getData()
@@ -265,7 +285,7 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self.tasker_instance.update_task_tf()
-            if self.tasker_instance.isDebug() ==True:
+            if self.tasker_instance.isDebug() == True:
                 rospy.loginfo('{}: Executing state: {}'.format(rospy.get_name(), self.__class__.__name__))
                 print 'UpdateTask.execute'
             #srv.shutdown()
