@@ -1,4 +1,0 @@
----
-int8 task_priority
-int32 start_deadline
-int32 task_duration
