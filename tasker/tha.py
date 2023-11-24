@@ -15,7 +15,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 _FINISH = False
 scheduler = threading.Thread
 switcher = threading.Thread
-th = TaskHarmoniser
+th = TaskHarmoniser()
 
 
 def init_da(request, response):
@@ -80,12 +80,10 @@ class TaskHarmoniserNode(Node):
 
 
 if __name__ == "__main__":
-    global th
     rclpy.init(args=sys.argv)
     print("ready")
     signal.signal(signal.SIGINT, signal_handler)
-    global scheduler
-    global switcher
+    
     scheduler = threading.Thread(target=scheduler_thread)
     scheduler.start()
     switcher = threading.Thread(target=switcher_thread)
