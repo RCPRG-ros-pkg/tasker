@@ -13,12 +13,12 @@ def generate_launch_description():
     sim_mode_arg = DeclareLaunchArgument(
         'sim_mode', default_value='gazebo'
     )
-    # kb_places_xml_arg = DeclareLaunchArgument(
-    #     'kb_places_xml', default_value=os.path.join(
-    #         get_package_share_directory('tiago_sim_integration'), 
-    #         'maps', '012_places', 'places.xml'
-    #     )
-    # )
+    kb_places_xml_arg = DeclareLaunchArgument(
+        'kb_places_xml', default_value=os.path.join(
+            get_package_share_directory('tasker'), 
+            'maps', '012_places', 'places.xml'
+        )
+    )
 
     # Define nodes
     task_harmonizer_node = Node(
@@ -46,7 +46,7 @@ def generate_launch_description():
     # Add the actions (arguments and nodes) to LaunchDescription
     ld.add_action(harmonizer_name_arg)
     ld.add_action(sim_mode_arg)
-    # ld.add_action(kb_places_xml_arg)
+    ld.add_action(kb_places_xml_arg)
     ld.add_action(task_harmonizer_node)
     ld.add_action(dictionary_service_node)
 

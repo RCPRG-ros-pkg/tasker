@@ -14,20 +14,19 @@ find_package(geometry_msgs REQUIRED)
 find_package(tasker_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-# # Explicitly find Python3
-# find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# Install Python script
+install(PROGRAMS
+  tasker/task_harmonizer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-# Generate custom messages and services
-
-
-# # Install Python modules
+# Install Python modules
 ament_python_install_package(tasker PACKAGE_DIR src/TaskER)
 
-# Specify install targets (optional, but recommended for C++ nodes, launch files, etc.)
-# install(
-#   DIRECTORY launch
-#   DESTINATION share/${PROJECT_NAME}
-# )
+# Install launch files
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
-# Build the ROS 2 package
 ament_package()

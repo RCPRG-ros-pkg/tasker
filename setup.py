@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # your console scripts
+            'task_harmonizer = tasker.task_harmonizer:main',
         ],
     },
 )
