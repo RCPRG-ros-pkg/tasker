@@ -9,8 +9,10 @@ import time
 
 import rclpy
 from rclpy.node import Node
+from ament_index_python.packages import get_package_share_directory
 from std_msgs.msg import String
 import tiago_msgs.msg
+from tiago_msgs.msg import Command
 from rcprg_smach.ros_node_utils import get_node_names
 from tasker.TaskHarmoniserAgent import TaskHarmoniserAgent
 
@@ -34,7 +36,8 @@ class TaskHarmonizer(Node):
         self.sub_list = []
         for topic_name in intent_topics:
             self.sub_list.append(self.create_subscription(
-                topic_name, tiago_msgs.msg.Command, self.callback, 10))
+                Command, topic_name, self.callback, 10))
+            # self.create_subscription(tiago_msgs.msg.Command, topic_name, self.callback, 10)
         self.pub_rico_filtered_cmd = self.create_publisher(
             Command, '/rico_filtered_cmd', 10)
 
@@ -53,6 +56,7 @@ class TaskHarmonizer(Node):
         print('ConversationMachine.__init__: connected to rico_says ActionServer')
         self._FINISH = False
         self.debug_file = False
+        self.loop_rate = self.create_rate(5)
 
     def hasTaskSpecByIntent(self, intent_name):
         for task_spec in self.tasks_spec_list:
@@ -128,7 +132,7 @@ class TaskHarmonizer(Node):
                     goal.sentence = 'niekorzystne warunki pogodowe nie słyszę'
                     self.say_sentence_publisher.publish(goal)
                     self.cant_hear_you = False
-                rclpy.sleep(0.5)
+                self.loop_rate.sleep()
         except Exception as e:
             self.get_logger().error('Detected exception in THA spin')
             self.get_logger().error(str(e))
@@ -293,22 +297,26 @@ def main():
         TaskSpec('test_wander', 'test_wander', 0, []),
     ]
 
-    rospack = rospkg.RosPack()
-    cached_rapps_path = rospack.get_path('rcprg_smach') + '/nodes'
+    cached_rapps_path = get_package_share_directory('rcprg_smach') + '/nodes'
+
     th = TaskHarmonizer(tha, ['rico_cmd'], tasks_spec_list, cached_rapps_path)
     scheduler = threading.Thread(target=th.scheduler)
     scheduler.start()
     switcher = threading.Thread(target=th.switcher)
     switcher.start()
     th.spin()
-    print("SPIIIINEED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("Task Harmonizer Node Spin Completed")
+
     switcher.join()
-    print("switcher!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("Switcher Thread Completed")
     scheduler.join()
-    print("scheduler!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("Scheduler Thread Completed")
+
     tha.close()
     del tha
-    print("tha!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("Task Harmoniser Agent Closed")
+
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':
