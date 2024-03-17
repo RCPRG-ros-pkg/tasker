@@ -12,7 +12,7 @@ import plotly.offline
 import tasker_msgs
 from tasker_msgs.msg import ScheduleParams
 from ppretty import ppretty
-import PriorityShdl
+from TaskER import PriorityShdl
 import numpy as np
 import time
 import sys
