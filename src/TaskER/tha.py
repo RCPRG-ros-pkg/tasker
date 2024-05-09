@@ -49,6 +49,7 @@ def switcher():
 	global _FINISH
 	while True:
 		print "\n SWITCHING \n"
+		print("THAAA SWITCHER")
 		th.switchDA()
 		if _FINISH:
 			break

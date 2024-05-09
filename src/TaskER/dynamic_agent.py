@@ -65,7 +65,7 @@ class SuspendRequest:
         self.req_data = []
 
 class DynAgent:
-    def __init__(self, da_name, da_id, da_type, ptf_csp, da_state_name):
+    def __init__(self, da_name, da_id, da_type, ptf_csp, da_state_name, task_kb_id):
 
         global USE_SMACH_INRTOSPECTION_SERVER
         global debug
@@ -168,6 +168,7 @@ class DynAgent:
         my_status.da_id = self.da_id
         my_status.da_name = self.name
         my_status.type = self.taskType
+
         result = self.process_ptf_csp(["scheduleParams", None])
         if result != 'self-terminate':
             my_status.schedule_params = result
@@ -175,10 +176,10 @@ class DynAgent:
             return
         my_status.da_state = self.da_state
         if debug:
-            print("UPDATEING STATUS params of: "+str(self.name)+"\n of "+ str( self.taskType)+" type \n"+str(my_status.schedule_params)+"\n")
+            print("UPDATING STATUS params of: "+str(self.name)+"\n of "+ str( self.taskType)+" type \n"+str(my_status.schedule_params)+"\n")
         
         self.tasker_communicator.pub_status(my_status)
-        # self.pub_status.publish(my_status) 
+
         
     def cmd_handler(self, data):
         global debug
@@ -221,7 +222,7 @@ class DynAgent:
     def run(self, main_sm, sis=None):
         global USE_SMACH_INRTOSPECTION_SERVER
         self.main_sm = main_sm
-        print "RUNNING DA"
+        print "Running DA"
 
         #sis_main = smach_ros.IntrospectionServer('behaviour_server', self.main_sm, '/SM_BEHAVIOUR_SERVER')
         #sis_main.start()
@@ -273,8 +274,12 @@ class DynAgent:
             # wait for start signal          
             #self.start_service = rospy.Service(self.node_namespace+"/startTask", Trigger, lambda : None )
             while True:
-                print "RUNNING"
+                # print "RUNNING"
                 self.updateStatus()
+                # print("START FLAG")
+                # print(self.startFlag)
+
+                # if self.startFlag == True:
                 if self.startFlag:
                     break 
                 if self.terminateFlag:
@@ -380,7 +385,6 @@ class DynAgent:
             time.sleep(0.2)
 
     def recvCMDThread(self, args):
-
         while not self.terminateFlag:
             try:
                 self.cmd_handler(self.tasker_communicator.sub_cmd())

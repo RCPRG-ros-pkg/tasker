@@ -103,6 +103,9 @@ class DACommunicator():
 				socket.close()
 				print "closed: ", i
 				i+=1
+			
+			# print("ERROR IN CLOSE FUNTION, TASKER_COMM.PY")
+			# print("SELF.CONTEXT.TERM IS NOT FINISHING")
 			self.context.term()
 			print "\n\n DACommunicator CLOSED \n\n"
 

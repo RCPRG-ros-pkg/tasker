@@ -1,0 +1,156 @@
+# in move_new task, only locations metioned in places_xml.py are included
+# it is done so that the task harmonizer can work. If you would like
+# to add some more locations, you have to add them to places_xml.py prior
+tasks:
+  - name: move_new
+    locations:
+        - name: kuchnia
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 2.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+        
+        - name: stpt
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 0.0
+            target_pose.pose.position.y: 0.0
+            target_pose.pose.orientation.w: 1
+
+        - name: salon
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 1.6
+            target_pose.pose.position.y: 8.7
+            target_pose.pose.orientation.w: 1
+
+        - name: pokoj
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.9
+            target_pose.pose.position.y: 8.2
+            target_pose.pose.orientation.w: 1
+
+        - name: warsztat
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+  - name: rescue
+    locations:
+        - name: kuchnia
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 2.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+
+        - name: salon
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 1.6
+            target_pose.pose.position.y: 8.7
+            target_pose.pose.orientation.w: 1
+
+        - name: pokoj
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.9
+            target_pose.pose.position.y: 8.2
+            target_pose.pose.orientation.w: 1
+
+        - name: warsztat
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+  - name: clean
+    locations:
+        - name: kuchnia
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 2.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+
+        - name: salon
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 1.6
+            target_pose.pose.position.y: 8.7
+            target_pose.pose.orientation.w: 1
+
+        - name: pokoj
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.9
+            target_pose.pose.position.y: 8.2
+            target_pose.pose.orientation.w: 1
+
+        - name: warsztat
+          position:
+            target_pose.header.frame_id: "map"
+            target_pose.pose.position.x: 3.0
+            target_pose.pose.position.y: 2.0
+            target_pose.pose.orientation.w: 1
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'MN'
+# param_names: ['miejsce']
+# param_values: ['stpt']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'MN'
+# param_names: ['miejsce']
+# param_values: ['salon']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'MN'
+# param_names: ['miejsce']
+# param_values: ['warsztat']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'MN'
+# param_names: ['miejsce']
+# param_values: ['kuchnia']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'RS'
+# param_names: ['miejsce']
+# param_values: ['kuchnia']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'RS'
+# param_names: ['miejsce']
+# param_values: ['stpt']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'RS'
+# param_names: ['miejsce']
+# param_values: ['salon']
+# confidence: 0.0
+# response_text: ''"
+
+# rostopic pub /rico_cmd tiago_msgs/Command "query_text: ''
+# intent_name: 'RS'
+# param_names: ['miejsce']
+# param_values: ['warsztat']
+# confidence: 0.0
+# response_text: ''"
+
+# clean_rviz_gazebo_whole_sc_1
