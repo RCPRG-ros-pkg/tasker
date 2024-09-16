@@ -143,7 +143,6 @@ class TaskER(smach_rcprg.StateMachine):
 
         def execute(self, userdata):
             self._userdata = userdata
-            # rate = rospy.Rate(self.tf_freq)
             tf_result = None
             while tf_result is None:
                 susp_flag = self.is_suspension_flag()
@@ -157,7 +156,6 @@ class TaskER(smach_rcprg.StateMachine):
                 if susp_flag is not None:
                     break
                 sleep_rate(self.tf_freq)
-                # rate.sleep()
             return tf_result
 
         def transition_function(self, userdata):

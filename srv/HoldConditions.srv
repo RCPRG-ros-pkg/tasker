@@ -1,4 +1,0 @@
----
-int8 priority
-int32 time_to_hold
-int32 time_to_finish

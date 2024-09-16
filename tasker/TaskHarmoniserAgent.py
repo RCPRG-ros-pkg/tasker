@@ -4,14 +4,13 @@
 from collections import OrderedDict
 from tasker_msgs.msg import *
 from tasker_msgs.srv import *
-from tasker_comm import THACommunicator
+from tasker.tasker_comm import THACommunicator
 import threading
 import time
 import subprocess
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
-from rclpy.rate import Rate
 from rclpy.clock import Clock, ClockType
 
 
@@ -19,6 +18,8 @@ class TaskHarmoniserAgent(Node):
 
     def __init__(self):
         super().__init__('task_harmoniser_agent')
+
+        self.loop_rate = self.create_rate(5)
 
         self.switchIndicator = threading.Event()
         self.switchIndicator.clear()
@@ -278,7 +279,7 @@ class TaskHarmoniserAgent(Node):
                          and (self.execField["da_state"][0] != "Wait"))
             if wait_flag:
                 print("Switch thread waits for exec_da to be WAIT or DEAD")
-                Rate(5).sleep()
+                self.loop_rate.sleep()
             else:
                 self.lock.acquire()
                 exe_da = self.execField
@@ -594,7 +595,6 @@ class TaskHarmoniserAgent(Node):
         # print("\nSCHEDULED\n")
 
     def switchDA(self):
-        r = Rate(5)
         self.switchIndicator.wait()
         if self.is_interrupting():
             print("\nSWITCHING\n")
@@ -619,7 +619,7 @@ class TaskHarmoniserAgent(Node):
                             if wait_flag:
                                 print(
                                     "Waiting for DA: ", commanding["da_name"], " to terminate after long processing of ['start','resume'] command, and new interruption is comming")
-                                Rate(5).sleep()
+                                self.loop_rate.sleep()
                             else:
                                 # Exec DA is terminated, remove it from Exec field
                                 self.lock.acquire()
@@ -627,7 +627,7 @@ class TaskHarmoniserAgent(Node):
                                 self.lock.release()
                                 break
                         break
-                    r.sleep()
+                    self.loop_rate.sleep()
 
                 if self.isDAAlive_with_lock(commanding):
                     print("SEND SUSPEND to commanding: ", commanding["da_id"])
@@ -687,7 +687,7 @@ class TaskHarmoniserAgent(Node):
                     return
                 print("\nSWITCHING: waiting for STARTED to be in UpdateTask or ExecFSM. It is in <",
                       interrupting["da_state"][0], "> state.")
-                Rate(5).sleep(0.5)
+                self.loop_rate.sleep()
 
             # rospy.wait_for_service('/'+interrupting["da_name"]+'/TaskER/hold_now', timeout=2)
             self.lock.acquire()

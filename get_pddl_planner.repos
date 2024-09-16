@@ -1,0 +1,21 @@
+# vcs file format for ROS 2
+repositories:
+  - type: git
+    name: VAL
+    url: https://github.com/KCL-Planning/VAL
+    version: master
+
+  - type: git
+    name: universal-pddl-parser
+    url: https://github.com/aig-upf/universal-pddl-parser.git
+    version: master
+
+  - type: git
+    name: temporal-planning
+    url: https://github.com/aig-upf/temporal-planning.git
+    version: master
+
+  - type: git
+    name: multitasker
+    url: https://gitlab.com/dudekw/multitasker.git
+    version: master
