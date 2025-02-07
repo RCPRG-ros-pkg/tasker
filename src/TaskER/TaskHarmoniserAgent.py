@@ -544,6 +544,16 @@ class TaskHarmoniserAgent():
         else:
             return False
 
+    def filterDA_BGF(self, DA):
+        if self.debug ==True:
+            print "IN FILTER: ", DA
+        if DA[1]["da_state"] == 'END':
+            return False
+        if DA[1]["da_type"] == "bring_goods_from_tasker" and DA[1]["priority"] != float('-inf'):
+            return True
+        else:
+            return False
+
     def schedule_new(self, cost_file):
         self.lock.acquire()
         if len(self.queue) > 0:
@@ -609,6 +619,7 @@ class TaskHarmoniserAgent():
             DAset_MT = {}
             DAset_BG = {}
             DAset_BGN = {}
+            DAset_BGF = {}
             
             cGH = {}
             cHF = {}
@@ -616,6 +627,7 @@ class TaskHarmoniserAgent():
             cMT = {}
             cBG = {}
             cBGN = {}
+            cBGF = {}
             # print "Q:"
             # print self.queue
             DAset_GH = filter(self.filterDA_GH, self.queue.items())
@@ -624,6 +636,7 @@ class TaskHarmoniserAgent():
             DAset_MT = filter(self.filterDA_MT, self.queue.items())
             DAset_BG = filter(self.filterDA_BG, self.queue.items())
             DAset_BGN = filter(self.filterDA_BGN, self.queue.items())
+            DAset_BGF = filter(self.filterDA_BGF, self.queue.items())
             
             # print "DAset_GH:"
             # print DAset_GH
@@ -642,6 +655,8 @@ class TaskHarmoniserAgent():
             q_BG = OrderedDict(sorted(DAset_BG, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             q_BGN = OrderedDict(sorted(DAset_BGN, 
+                            key=lambda kv: kv[1]["priority"], reverse=True))
+            q_BGF = OrderedDict(sorted(DAset_BGF, 
                             key=lambda kv: kv[1]["priority"], reverse=True))
             if self.debug_file == True:
                 cost_file.write("\n"+"Q:\n")
@@ -755,6 +770,23 @@ class TaskHarmoniserAgent():
                         self.updateIrrField(dac,switch_priority,cost_file)
                         self.lock.release()
                         return  
+            elif len(DAset_BGF) > 0:
+                if self.debug ==True:
+                    print "Have BGF"
+                cBGF = next(iter(q_BGF.items()))[1]
+                if self.debug_file == True:
+                    cost_file.write("\n"+"cBGF:"+"\n")
+                    cost_file.write(str(cBGF)+"\n")
+                dac = cBGF 
+                if self.isExecuting():
+                    if self.filterDA_HF([None,self.execField]):
+                        self.lock.release()
+                        return
+                    elif not self.filterDA_BGF([None,self.execField]):
+                        switch_priority = "normal"
+                        self.updateIrrField(dac,switch_priority,cost_file)
+                        self.lock.release()
+                        return
             else:
                 if self.isExecuting():
                     if not self.execField["da_type"] == dac["da_type"]:
