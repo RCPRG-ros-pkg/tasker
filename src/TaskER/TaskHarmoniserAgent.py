@@ -490,7 +490,7 @@ class TaskHarmoniserAgent():
             print "IN FILTER: ", DA
         if DA[1]["da_state"] == 'END':
             return False
-        if DA[1]["da_type"] == "guide_human_tasker" and DA[1]["priority"] != float('-inf'):
+        if DA[1]["da_type"] == "guide_human_with_camera_tasker" and DA[1]["priority"] != float('-inf'):
             return True
         else:
             return False
